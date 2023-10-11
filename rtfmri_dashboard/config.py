@@ -18,6 +18,7 @@ settings.read(os.path.join(ROOT_DIR, 'settings.conf'))
 block_size = settings.getint('REAL_TIME', 'block_size')
 rest_size = settings.getint('REAL_TIME', 'rest_size')
 hrf_stimulus_onset = settings.getint('REAL_TIME', 'hrf_stimulus_onset')
+hrf_amplitude = settings.getfloat('REAL_TIME', 'hrf_amplitude')
 repetition_time = settings.getfloat('REAL_TIME', 'tr')
 
 # ------------------------------------------------

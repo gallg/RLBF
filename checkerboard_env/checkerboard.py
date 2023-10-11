@@ -58,10 +58,6 @@ class CheckerBoardEnv(gym.Env):
 
         return observation, info
 
-    def set_action(self, contrast, frequency):
-        self.contrast = contrast
-        self.frequency = frequency
-
     def reward_handler(self, activation):
         noise = np.random.normal(0, 1/self.snr, size=1)
         reward = activation + noise

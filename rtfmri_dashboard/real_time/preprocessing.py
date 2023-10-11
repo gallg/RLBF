@@ -51,20 +51,6 @@ def ants_transform(moving, fixed, transformation):
     return registered_img
 
 
-def preprocess_volume(volume, template, affine, transformation=None, to_numpy=False):
-    volume = reorient_volume(volume, affine, to_ants=True)
-
-    if transformation is None:
-        transformation = ants_registration(volume, template)
-
-    volume = ants_transform(volume, template, transformation)
-
-    if to_numpy:
-        return volume.numpy()
-    else:
-        return volume
-
-
 def generate_hrf_regressor(time_length, duration, onset, amplitude, tr=1.0):
     # steps = int(time_length / tr)
 
