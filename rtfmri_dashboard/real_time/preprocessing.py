@@ -39,7 +39,7 @@ def ants_registration(moving, fixed, transform_type="SyNBold"):
         reg_iterations=(1000, 2000),
         verbose=False
     )
-    return transformation
+    return transformation["fwdtransforms"][1]
 
 
 def ants_transform(moving, fixed, transformation):

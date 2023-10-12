@@ -26,6 +26,16 @@ def load_environment(render_mode=None):
     return env
 
 
+def run_preprocessing(volume, template, affine, transformation=None):
+    volume = reorient_volume(volume, affine, to_ants=True)
+
+    if transformation is None:
+        transformation = ants_registration(volume, template)
+
+    volume = ants_transform(volume, template, transformation)
+    return volume, transformation
+
+
 class RealTimeEnv:
     def __init__(self, render_mode=None):
         # load environment;
@@ -37,7 +47,6 @@ class RealTimeEnv:
         self.first_volume_has_arrived = False
         self.block_has_finished = False
         self.resting_state = True
-        self.transformation = None
         self.epoch_duration = None
         self.hrf = None
 
@@ -50,7 +59,7 @@ class RealTimeEnv:
         self.previous_state = None
         self.agent = None
         self.initialize_env()
-        self.initialize_fmri()
+        self.initialize_hrf()
 
         # initialize log;
         self.log_realtime(
@@ -100,7 +109,7 @@ class RealTimeEnv:
             **parameters
         )
 
-    def initialize_fmri(self):
+    def initialize_hrf(self):
         self.epoch_duration = config.block_size + config.rest_size
         self.hrf = generate_hrf_regressor(
             time_length=self.epoch_duration + config.hrf_stimulus_onset,
@@ -122,8 +131,10 @@ class RealTimeEnv:
 
     def get_mask_data(self, volume, mask):
         if not self.mask:
-            self.mask = nib.load(mask).get_fdata()
-        return volume[mask == 1]
+            self.mask = ants.image_read(mask)
+
+        data = ants.utils.mask_image(volume, mask).numpy()
+        return data[np.nonzero(data)]
 
     def calculate_reward(self):
         hrf_duration = self.epoch_duration + config.hrf_stimulus_onset \
@@ -153,51 +164,50 @@ class RealTimeEnv:
             self.volume_counter += 1
 
             # preprocess volume;
-            volume = reorient_volume(volume, affine, to_ants=True)
+            volume, transformation = run_preprocessing(
+                volume,
+                template,
+                affine,
+                transformation
+            )
 
-            if self.transformation is None:
-                self.transformation = ants_registration(volume, template)
+            # acquire data;
+            data = self.get_mask_data(volume, mask)
+            self.temporary_data = data if self.temporary_data.shape[0] == 0 \
+                else np.vstack([self.temporary_data, data])
 
-            volume = ants_transform(volume, template, transformation).numpy()
+            # if block has finished, make environment step;
+            if self.volume_counter == self.epoch_duration:
+                action = self.agent.soft_q_action_selection()
 
-            if self.volume_counter > 1:
-                # acquire data;
-                data = self.get_mask_data(volume, mask)
-                self.temporary_data = data if self.temporary_data.shape[0] == 0 \
-                    else np.vstack([self.temporary_data, data])
+                (next_state,
+                 _,
+                 terminated,
+                 truncated,
+                 info) = self.environment.step(action)
 
-                # if block has finished, make environment step;
-                if self.volume_counter == self.epoch_duration:
-                    action = self.agent.soft_q_action_selection()
+                # get old q-value;
+                old_q_value = self.agent.q_table[self.previous_state]
+                next_state = discretize_observation(next_state, self.agent.n_bins)
+                reward = self.calculate_reward()
 
-                    (next_state,
-                     _,
-                     terminated,
-                     truncated,
-                     info) = self.environment.step(action)
+                # compute next q-value and update q-table;
+                self.agent.q_table = self.agent.update_q_table(reward, next_state, old_q_value)
+                self.previous_state = next_state
 
-                    # get old q-value;
-                    old_q_value = self.agent.q_table[self.previous_state]
-                    next_state = discretize_observation(next_state, self.agent.n_bins)
-                    reward = self.calculate_reward()
+                # decide whether to reduce temperature or not;
+                self.agent.reduce_temperature(
+                    self.current_epoch,
+                    reduce=config.reduce_temperature
+                )
 
-                    # compute next q-value and update q-table;
-                    self.agent.q_table = self.agent.update_q_table(reward, next_state, old_q_value)
-                    self.previous_state = next_state
-
-                    # decide whether to reduce temperature or not;
-                    self.agent.reduce_temperature(
-                        self.current_epoch,
-                        reduce=config.reduce_temperature
-                    )
-
-                    # log current status and start a new epoch;
-                    self.log_realtime(
-                        action,
-                        reward,
-                        init=False
-                    )
-                    self.reset_realtime()
+                # log current status and start a new epoch;
+                self.log_realtime(
+                    action,
+                    reward,
+                    init=False
+                )
+                self.reset_realtime()
 
     def log_realtime(self, action, reward, init=False):
         log = {
