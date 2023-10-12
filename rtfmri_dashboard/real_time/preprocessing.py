@@ -5,16 +5,17 @@ import numpy as np
 import ants
 
 
-def get_template(template, to_ants=False):
-    if isinstance(template, str):
-        template = nib.load(template)
+def get_image(image, affine=True, to_ants=False):
+    if isinstance(image, str):
+        image = nib.load(image)
 
-    affine = template.affine
+    if affine:
+        affine = image.affine
 
     if to_ants:
-        return ants.from_nibabel(template), affine
+        return ants.from_nibabel(image), affine
     else:
-        return template, affine
+        return image, affine
 
 
 def reorient_volume(volume, affine, to_ants=False):

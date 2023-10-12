@@ -1,10 +1,9 @@
 from .real_time.utils import check_file_integrity, dcm_to_array
 from .real_time.workflow import RealTimeEnv, run_preprocessing
-from .real_time.preprocessing import get_template
+from .real_time.preprocessing import get_image
 from shutil import copyfile
 from posixpath import join
 
-import ants.core.ants_image
 import sys
 import os
 import re
@@ -57,8 +56,8 @@ def scan_dicom_folder(folder_path):
 
 def initialize_realtime(env, volume, template, mask, output_dir):
     real_time_env = env(render_mode="human")
-    template, affine = get_template(template, to_ants=True)
-    mask = ants.image_read(mask)
+    template, affine = get_image(template, affine=True, to_ants=True)
+    mask, _ = get_image(mask, affine=False, to_ants=True)
     transform_matrix = join(output_dir, "fwdtransforms.mat")
 
     if not os.path.isfile(transform_matrix):
