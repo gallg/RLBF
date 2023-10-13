@@ -84,7 +84,7 @@ def run_acquisition(scan_dir, template, mask):
     f_hash = ""
     f_size = -1
 
-    output_dir = "../data_out/"
+    output_dir = "../log/"
     real_time_env = None
     transformation = None
     affine = None

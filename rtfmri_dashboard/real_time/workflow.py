@@ -218,7 +218,7 @@ class RealTimeEnv:
             "epoch": self.current_epoch
         }
 
-        with open("../../data_out/log.json", "w") as json_file:
+        with open("../../log/log.json", "w") as json_file:
             json.dump(log, json_file)
 
     def reset_realtime(self):
@@ -228,5 +228,5 @@ class RealTimeEnv:
 
     def stop_realtime(self):
         # save acquired data and close environment;
-        np.save("../../data_out/data.npy", self.real_time_data)
+        np.save("../../log/data.npy", self.real_time_data)
         self.environment.close()

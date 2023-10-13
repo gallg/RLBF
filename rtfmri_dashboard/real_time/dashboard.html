@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Real-Time Report</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f4f4f4;
+        }
+        .container {
+            width: 80%;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+        .variable {
+            text-align: right;
+        }
+        .image {
+            margin: 10px;
+            text-align: left;
+        }
+        .image img {
+            width: 100%;
+            max-width: 600px;
+        }
+        canvas {
+            border: 1px solid #ccc;
+            max-width: 100%;
+            max-height: 50%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Real-Time Dashboard</h1>
+        <div class="variable">
+            Contrast: <span id="contrast"></span>
+        </div>
+        <div class="variable">
+            Frequency: <span id="frequency"></span>
+        </div>
+        <div class="variable">
+            Reward: <span id="reward"></span>
+        </div>
+        <div class="variable">
+            Resting State: <span id="resting_state"></span>
+        </div>
+        <div class="variable">
+            Epoch: <span id="epoch"></span>
+        </div>
+        <div class="image">
+            <p>Reference Registration:</p>
+            <img src="../../log/image1.png" alt="Registration">
+        </div>
+        <div class="image">
+            <p>Current Volume:</p>
+            <img src="../../log/image2.png" alt="Current Volume">
+        </div>
+        <div class="image">
+            <p>Real-Time Data</p>
+            <canvas id="image3Canvas"></canvas>
+        </div>
+    </div>
+    <script src="../../data_in/dependencies/Chart.js"></script>
+    <script>
+        let myChart = null; // Declare a variable to store the chart instance
+        const canvas = document.getElementById('image3Canvas'); // Get the canvas element
+        let lastModified = null;
+        function createChart() {
+            // Create a Chart.js line chart on the canvas (image3Canvas)
+            const ctx = canvas.getContext('2d');
+
+            myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [], // You can add labels here if needed
+                    datasets: [],
+                },
+                options: {
+                    scales: {
+                        x: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: 'Time',
+                            },
+                        },
+                        y: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: 'Value',
+                            },
+                        },
+                    },
+                },
+            });
+        }
+
+        createChart(); // Create the chart once
+
+        function updateVariables() {
+        const headers = new Headers();
+        if (lastModified) {
+            headers.append('If-Modified-Since', lastModified);
+        }
+
+        fetch('../../log/log.json', { method: 'GET', headers })
+            .then(response => {
+                if (response.status === 304) {
+                    // No modification, no need to update
+                    return;
+                }
+
+                if (response.status === 200) {
+                    // There's new data
+                    lastModified = response.headers.get('Last-Modified');
+
+                    response.json().then(data => {
+                        document.getElementById('contrast').textContent = data.contrast;
+                        document.getElementById('frequency').textContent = data.frequency;
+                        document.getElementById('reward').textContent = data.reward;
+                        document.getElementById('resting_state').textContent = data.resting_state;
+                        document.getElementById('epoch').textContent = data.epoch;
+
+                        const hrf = data.hrf;
+                        const fmriData = data.fmri_data;
+
+                        if (!Array.isArray(hrf) || !Array.isArray(fmriData)) {
+                            console.error("Data format is incorrect. Ensure that hrf and fmri_data are arrays.");
+                            return;
+                        }
+
+                        myChart.data.labels = [];
+                        myChart.data.datasets = [
+                            {
+                                label: 'HRF',
+                                borderColor: 'red',
+                                data: hrf,
+                            },
+                            {
+                                label: 'fMRI Data',
+                                borderColor: 'blue',
+                                data: fmriData,
+                            },
+                        ];
+
+                        myChart.update();
+                    });
+                }
+            })
+            .catch(error => console.error(error));
+    }
+        // Update variables ;
+        updateVariables();
+    </script>
+</body>
+</html>
