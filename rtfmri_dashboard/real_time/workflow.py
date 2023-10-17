@@ -1,7 +1,9 @@
-from ..agents.utils import generate_gaussian_kernel, discretize_observation
-from ..agents.soft_q_learner import SoftQAgent
+from rtfmri_dashboard.agents.utils import generate_gaussian_kernel, discretize_observation, create_bins
+from rtfmri_dashboard.agents.soft_q_learner import SoftQAgent
+from rtfmri_dashboard.real_time.utils import plot_image
 from checkerboard_env.utils import load_checkerboard
-from .preprocessing import *
+from rtfmri_dashboard.real_time.preprocessing import *
+from posixpath import join
 
 import rtfmri_dashboard.config as config
 import gymnasium as gym
@@ -12,8 +14,8 @@ import json
 
 def load_environment(render_mode=None):
     board, inverse, cross = load_checkerboard(
-        "./checkerboard_env/assets/checkerboard.png",
-        "./checkerboard_env/assets/cross.png"
+        "../checkerboard_env/assets/checkerboard.png",
+        "../checkerboard_env/assets/cross.png"
     )
 
     env = gym.make(
@@ -47,8 +49,9 @@ class RealTimeEnv:
         self.first_volume_has_arrived = False
         self.block_has_finished = False
         self.resting_state = True
-        self.epoch_duration = None
+        self.epoch_duration = 0
         self.hrf = None
+        self.output_dir = "../log/"
 
         # store real-time data;
         self.temporary_data = np.array([])
@@ -58,6 +61,7 @@ class RealTimeEnv:
         self.current_epoch = 1
         self.previous_state = None
         self.agent = None
+        self.bins = None
         self.initialize_env()
         self.initialize_hrf()
 
@@ -65,7 +69,7 @@ class RealTimeEnv:
         self.log_realtime(
             [0, 0],
             0,
-            init=True
+            self.epoch_duration
         )
 
     def initialize_env(self):
@@ -79,6 +83,9 @@ class RealTimeEnv:
             "reduce_temperature": config.reduce_temperature,
             "decay_rate": config.decay_rate
         }
+
+        # generate bins;
+        self.bins = create_bins(config.num_bins_per_observation)
 
         # Create q_table;
         q_table_shape = (
@@ -100,7 +107,7 @@ class RealTimeEnv:
         # Load Soft-Q agent;
         self.previous_state = discretize_observation(
             observation,
-            config.num_bins_per_observation
+            self.bins
         )
         self.agent = SoftQAgent(
             self.environment,
@@ -152,7 +159,7 @@ class RealTimeEnv:
             self.real_time_data[-hrf_duration:].reshape(-1, 1),
             self.hrf.reshape(-1, 1)
         )
-        return reward
+        return reward, hrf_duration
 
     def run_realtime(self, volume, template, mask, affine, transformation=None):
 
@@ -173,6 +180,10 @@ class RealTimeEnv:
 
             # acquire data;
             data = self.get_mask_data(volume, mask)
+
+            # plot new, preprocessed, volume;
+            plot_image(volume, mask, join(self.output_dir, "volume.png"))
+
             self.temporary_data = data if self.temporary_data.shape[0] == 0 \
                 else np.vstack([self.temporary_data, data])
 
@@ -188,8 +199,8 @@ class RealTimeEnv:
 
                 # get old q-value;
                 old_q_value = self.agent.q_table[self.previous_state]
-                next_state = discretize_observation(next_state, self.agent.n_bins)
-                reward = self.calculate_reward()
+                next_state = discretize_observation(next_state, self.bins)
+                reward, hrf_duration = self.calculate_reward()
 
                 # compute next q-value and update q-table;
                 self.agent.q_table = self.agent.update_q_table(reward, next_state, old_q_value)
@@ -205,20 +216,27 @@ class RealTimeEnv:
                 self.log_realtime(
                     action,
                     reward,
-                    init=False
+                    hrf_duration
                 )
                 self.reset_realtime()
 
-    def log_realtime(self, action, reward, init=False):
+    def log_realtime(self, action, reward, hrf_duration):
+        serializable_hrf = json.dumps(self.hrf.tolist())
+        serializable_data = json.dumps(self.real_time_data.tolist())
+
         log = {
-            "contrast": 0 if init else action[0],
-            "frequency": 0 if init else action[1],
-            "reward": 0 if init else reward,
-            "resting_state": True if init else self.resting_state,
-            "epoch": self.current_epoch
+            "contrast": action[0],
+            "frequency": action[1],
+            "reward": reward,
+            "resting_state": self.resting_state,
+            "epoch": self.current_epoch,
+            "hrf": serializable_hrf,
+            "fmri_data": (serializable_data[-hrf_duration:]
+                          if len(self.real_time_data) >= hrf_duration
+                          else serializable_data)
         }
 
-        with open("../../log/log.json", "w") as json_file:
+        with open(join(self.output_dir, "log.json"), "w") as json_file:
             json.dump(log, json_file)
 
     def reset_realtime(self):
@@ -228,5 +246,5 @@ class RealTimeEnv:
 
     def stop_realtime(self):
         # save acquired data and close environment;
-        np.save("../../log/data.npy", self.real_time_data)
+        np.save(join(self.output_dir, "data.npy"), self.real_time_data)
         self.environment.close()

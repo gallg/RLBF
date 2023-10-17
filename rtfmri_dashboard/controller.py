@@ -1,6 +1,6 @@
-from .real_time.utils import check_file_integrity, dcm_to_array
-from .real_time.workflow import RealTimeEnv, run_preprocessing
-from .real_time.preprocessing import get_image
+from real_time.utils import check_file_integrity, dcm_to_array, plot_image
+from real_time.workflow import RealTimeEnv, run_preprocessing
+from real_time.preprocessing import get_image
 from shutil import copyfile
 from posixpath import join
 
@@ -68,6 +68,9 @@ def initialize_realtime(env, volume, template, mask, output_dir):
         )
         copyfile(transformation, transform_matrix)
 
+        # plot reference image;
+        plot_image(volume, mask, join(output_dir, "reference.png"))
+
     return real_time_env, template, affine, mask, transform_matrix
 
 
@@ -88,6 +91,7 @@ def run_acquisition(scan_dir, template, mask):
     real_time_env = None
     transformation = None
     affine = None
+    volume = None
 
     while True:
         if first_volume_has_been_processed:
@@ -98,21 +102,18 @@ def run_acquisition(scan_dir, template, mask):
                        if current_series in dcm
                        and dcm not in processed]
 
-            if len(f_queue) == 0:
-                continue
+        if len(f_queue) > 0:
+            dcmfile = join(scan_dir, f_queue[0])  # ToDo: test the mainloop;
 
-        dcmfile = join(scan_dir, f_queue[0])
+            # Check for file integrity;
+            current_f_hash = check_file_integrity(dcmfile)
+            current_f_size = os.stat(dcmfile).st_size
 
-        # Check for file integrity;
-        current_f_hash = check_file_integrity(dcmfile)
-        current_f_size = os.stat(dcmfile).st_size
-
-        if (current_f_hash != f_hash) or (current_f_size != f_size):
-            f_hash = current_f_hash
-            f_size = current_f_size
-            volume = None  # go forward instead of sleeping;
-        else:
-            volume = dcm_to_array(dcmfile)
+            if (current_f_hash != f_hash) or (current_f_size != f_size):
+                f_hash = current_f_hash
+                f_size = current_f_size
+            else:
+                volume = dcm_to_array(dcmfile)
 
         # REAL-TIME PROCESSING;
         if volume is not None:
@@ -124,22 +125,22 @@ def run_acquisition(scan_dir, template, mask):
                     mask,
                     output_dir
                 )
-                # ToDo: make env start rendering at initialization;
-                # ToDo: make initialize_realtime save plots for the dashboard;
+
+            # Mark volume as processed
+            processed.append(f_queue[0])
+            first_volume_has_been_processed = True
 
         if first_volume_has_been_processed:
             real_time_env.run_realtime(volume, template, mask, affine, transformation)
 
-        # Mark volume as processed
-        processed.append(f_queue[0])
-        if len(processed) == 1:
-            first_volume_has_been_processed = True
+        # reset volume;
+        volume = None
 
 
 if __name__ == "__main__":
     try:
         run_acquisition(
-            "acquisition_folder_name",
+            "scanner directory",
             "",
             ""
         )
