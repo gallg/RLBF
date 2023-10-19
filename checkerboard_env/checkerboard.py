@@ -9,7 +9,7 @@ import pygame
 class CheckerBoardEnv(gym.Env):
     metadata = {"render_modes": ["human"], "render_fps": 30}
 
-    def __init__(self, render_mode=None, checkerboard=None, inverse=None, cross=None, snr=None):
+    def __init__(self, render_mode=None, checkerboard=None, inverse=None, cross=None):
         self.screen_width = 600
         self.screen_height = 600
         self.background = (93, 93, 93)
@@ -30,9 +30,6 @@ class CheckerBoardEnv(gym.Env):
         self.frequency_high = 1.0
 
         self.activation = 0
-        self.contrast_coeff = 1.0
-        self.frequency_coeff = np.exp(-((np.arange(0.1, 10.1, 0.1) - 7) ** 2) / 20)  # Highest activation at 7hz;
-        self.snr = snr
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.fps_controller = pygame.time.Clock()
@@ -58,22 +55,13 @@ class CheckerBoardEnv(gym.Env):
 
         return observation, info
 
-    def reward_handler(self, activation):
-        noise = np.random.normal(0, 1/self.snr, size=1)
-        reward = activation + noise
-        return reward
-
     def step(self, action):
         
         self.contrast, self.frequency = action
-
-        contrast_activation = self.contrast_coeff * self.contrast
-        frequency_activation = self.frequency_coeff[int(self.frequency * 100) - 1]
-        self.activation = contrast_activation * frequency_activation
-
         observation = np.array([self.contrast, self.frequency])
-        reward = self.reward_handler(self.activation)[0]
 
+        # reward is calculated externally;
+        reward = 0
         terminated = False
         truncated = False
         info = {}

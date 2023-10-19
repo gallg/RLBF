@@ -1,3 +1,5 @@
+import ants.core.ants_image
+
 from rtfmri_dashboard.agents.utils import generate_gaussian_kernel, discretize_observation, create_bins
 from rtfmri_dashboard.agents.soft_q_learner import SoftQAgent
 from rtfmri_dashboard.real_time.utils import plot_image
@@ -137,7 +139,7 @@ class RealTimeEnv:
         )
 
     def get_mask_data(self, volume, mask):
-        if not self.mask:
+        if not isinstance(mask, ants.core.ants_image.ANTsImage):
             self.mask = ants.image_read(mask)
 
         data = ants.utils.mask_image(volume, mask).numpy()
@@ -182,7 +184,12 @@ class RealTimeEnv:
             data = self.get_mask_data(volume, mask)
 
             # plot new, preprocessed, volume;
-            plot_image(volume, mask, join(self.output_dir, "volume.png"))
+            plot_image(
+                volume,
+                mask,
+                reorient=False,
+                filename=join(self.output_dir, "volume.png")
+            )
 
             self.temporary_data = data if self.temporary_data.shape[0] == 0 \
                 else np.vstack([self.temporary_data, data])

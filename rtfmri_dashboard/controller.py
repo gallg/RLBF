@@ -61,6 +61,7 @@ def initialize_realtime(env, volume, template, mask, output_dir):
     transform_matrix = join(output_dir, "fwdtransforms.mat")
 
     if not os.path.isfile(transform_matrix):
+        print("No transformation matrix found, preprocessing reference volume!")
         volume, transformation = run_preprocessing(
             volume,
             template,
@@ -69,12 +70,18 @@ def initialize_realtime(env, volume, template, mask, output_dir):
         copyfile(transformation, transform_matrix)
 
         # plot reference image;
-        plot_image(volume, mask, join(output_dir, "reference.png"))
+        plot_image(
+            volume,
+            mask,
+            reorient=False,
+            filename=join(output_dir, "reference.png")
+        )
+        print("reference has been preprocessed!")
 
     return real_time_env, template, affine, mask, transform_matrix
 
 
-def run_acquisition(scan_dir, template, mask):
+def run_acquisition(scan_dir, template, mask, preprocessing):
     # When it becomes True we can pass to the second volume;
     first_volume_has_been_processed = False
 
@@ -94,16 +101,15 @@ def run_acquisition(scan_dir, template, mask):
     volume = None
 
     while True:
-        if first_volume_has_been_processed:
-            current_files = os.listdir(scan_dir)
+        if first_volume_has_been_processed:                 # ToDo: check RL workflow and logged values;
+            current_files = os.listdir(scan_dir)            # ToDo: fix environment rendering;
 
             # Update queue;
-            f_queue = [dcm for dcm in current_files
-                       if current_series in dcm
-                       and dcm not in processed]
+            f_queue = sorted([dcm for dcm in current_files
+                             if dcm not in processed])
 
         if len(f_queue) > 0:
-            dcmfile = join(scan_dir, f_queue[0])  # ToDo: test the mainloop;
+            dcmfile = join(scan_dir, f_queue[0])
 
             # Check for file integrity;
             current_f_hash = check_file_integrity(dcmfile)
@@ -126,12 +132,16 @@ def run_acquisition(scan_dir, template, mask):
                     output_dir
                 )
 
-            # Mark volume as processed
+            # Mark volume as processed;
             processed.append(f_queue[0])
             first_volume_has_been_processed = True
 
-        if first_volume_has_been_processed:
+        if first_volume_has_been_processed and not preprocessing:
             real_time_env.run_realtime(volume, template, mask, affine, transformation)
+
+        # if preprocessing is true the first volume data is not collected;
+        if preprocessing and volume is not None:
+            preprocessing = False
 
         # reset volume;
         volume = None
@@ -140,9 +150,10 @@ def run_acquisition(scan_dir, template, mask):
 if __name__ == "__main__":
     try:
         run_acquisition(
-            "scanner directory",
             "",
-            ""
+            "",
+            "",
+            preprocessing=True
         )
 
     except KeyboardInterrupt:

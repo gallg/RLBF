@@ -16,5 +16,8 @@ def dcm_to_array(filename):
     return pydicom.dcmread(filename).pixel_array
 
 
-def plot_image(image, mask, filename):
-    ants.viz.plot_ortho_stack([image], [mask], filename)
+def plot_image(image, mask, reorient=False, filename=None):
+    ants.viz.plot_ortho_stack([image],
+                              [mask],
+                              filename=filename,
+                              reorient=reorient)
