@@ -53,6 +53,7 @@ class RealTimeEnv:
         self.resting_state = True
         self.epoch_duration = 0
         self.hrf = None
+        self.serializable_hrf = None
         self.output_dir = "../log/"
 
         # store real-time data;
@@ -73,6 +74,8 @@ class RealTimeEnv:
             0,
             self.epoch_duration
         )
+
+        self.serializable_hrf = []
 
     def initialize_env(self):
         observation, _ = self.environment.reset()
@@ -127,6 +130,7 @@ class RealTimeEnv:
             amplitude=config.hrf_amplitude,
             tr=config.repetition_time
         )
+        self.serializable_hrf = json.dumps(self.hrf.reshape(1, -1).tolist()[0])
 
     def update_rendering(self):
         # render checkerboard if resting state finished;
@@ -228,8 +232,7 @@ class RealTimeEnv:
                 self.reset_realtime()
 
     def log_realtime(self, action, reward, hrf_duration):
-        serializable_hrf = json.dumps(self.hrf.tolist())
-        serializable_data = json.dumps(self.real_time_data.tolist())
+        serializable_data = json.dumps(self.real_time_data[-hrf_duration:].tolist())
 
         log = {
             "contrast": action[0],
@@ -237,14 +240,22 @@ class RealTimeEnv:
             "reward": reward,
             "resting_state": self.resting_state,
             "epoch": self.current_epoch,
-            "hrf": serializable_hrf,
-            "fmri_data": (serializable_data[-hrf_duration:]
-                          if len(self.real_time_data) >= hrf_duration
-                          else serializable_data)
+            "hrf": self.serializable_hrf,
+            "fmri_data": serializable_data
         }
 
+        try:
+            with open(join(self.output_dir, "log.json"), "r") as json_file:
+                json_data = json.load(json_file)
+        except json.JSONDecodeError:
+            json_data = []
+
+        json_data.append(log)
+
+        # write the updated data back to the log file;
         with open(join(self.output_dir, "log.json"), "w") as json_file:
-            json.dump(log, json_file)
+            json_file.seek(0)
+            json.dump(json_data, json_file, indent=4)
 
     def reset_realtime(self):
         self.resting_state = True

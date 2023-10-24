@@ -124,21 +124,26 @@
                     lastModified = response.headers.get('Last-Modified');
 
                     response.json().then(data => {
-                        document.getElementById('contrast').textContent = data.contrast;
-                        document.getElementById('frequency').textContent = data.frequency;
-                        document.getElementById('reward').textContent = data.reward;
-                        document.getElementById('resting_state').textContent = data.resting_state;
-                        document.getElementById('epoch').textContent = data.epoch;
+                        const data_size = data.length-1;
 
-                        const hrf = data.hrf;
-                        const fmriData = data.fmri_data;
+                        document.getElementById('contrast').textContent = data[data_size].contrast;
+                        document.getElementById('frequency').textContent = data[data_size].frequency;
+                        document.getElementById('reward').textContent = data[data_size].reward;
+                        document.getElementById('resting_state').textContent = data[data_size].resting_state;
+                        document.getElementById('epoch').textContent = data[data_size].epoch;
+
+                        const hrf = JSON.parse(data[0].hrf);
+                        const fmriData = JSON.parse(data[data_size].fmri_data);
 
                         if (!Array.isArray(hrf) || !Array.isArray(fmriData)) {
                             console.error("Data format is incorrect. Ensure that hrf and fmri_data are arrays.");
                             return;
                         }
 
-                        myChart.data.labels = [];
+                        // generates X-axis labels;
+                        myChart.data.labels = Array.from({ length: hrf.length }, (_, i) => i + 1);
+
+                        // plot data;
                         myChart.data.datasets = [
                             {
                                 label: 'HRF',

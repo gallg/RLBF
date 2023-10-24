@@ -1,57 +1,19 @@
-from real_time.utils import check_file_integrity, dcm_to_array, plot_image
+from real_time.utils import check_file_integrity, dcm_to_array
+from real_time.utils import plot_image, scan_dicom_folder
 from real_time.workflow import RealTimeEnv, run_preprocessing
 from real_time.preprocessing import get_image
 from shutil import copyfile
 from posixpath import join
-
+import json
 import sys
 import os
-import re
-
-# Regex patterns to handle dicom filenames;
-dcm_pattern = re.compile(r'\d{3}_\d{6}_\d{6}_[^_]+.dcm')
-volume_number = re.compile(r'(?<=\d{3}_\d{6}_)[^_]+(?=_[^_]+\.dcm)')
-series_number = re.compile('(?<=_)[^_]+')
 
 
-def get_series_name(filenames):
-    series = []
-    all_vols = [f for f in filenames if dcm_pattern.match(f)]
-
-    if len(all_vols) > 0:
-        all_series = []
-        for f in all_vols:
-            all_series.append(series_number.search(f).group())
-        series = set(all_series)
-
-    return series
-
-
-def scan_dicom_folder(folder_path):
-    f_list = os.listdir(folder_path)
-    new_file = None
-    new_series = None
-
-    if len(f_list) > 0:
-        f_series = get_series_name(f_list)
-        print("Available Series: {0}".format(f_series))
-    else:
-        f_series = []
-        print("Waiting for new series to appear")
-
-    while True:  # Search for new series;
-        current_files = os.listdir(folder_path)
-        current_series = get_series_name(current_files)
-
-        if current_series != f_series:
-            new_file = next(iter(set(current_files) - set(f_list)))
-            new_series = next(iter(set(current_series) - set(f_series)))
-            print("New series found: {0}, Starting acquisition.".format(new_series))
-            break
-        else:
-            continue
-
-    return new_file, new_series
+def reset_log(log_path):
+    json_data = []
+    with open(log_path, "w") as json_file:
+        json_file.seek(0)
+        json.dump(json_data, json_file)
 
 
 def initialize_realtime(env, volume, template, mask, output_dir):
@@ -100,9 +62,13 @@ def run_acquisition(scan_dir, template, mask, preprocessing):
     affine = None
     volume = None
 
+    # ToDo: check data & plots are correct;
+    # ToDo: add stop function to the implementation;
+    # ToDo: fix environment rendering;
+
     while True:
-        if first_volume_has_been_processed:                 # ToDo: check RL workflow and logged values;
-            current_files = os.listdir(scan_dir)            # ToDo: fix environment rendering;
+        if first_volume_has_been_processed:
+            current_files = os.listdir(scan_dir)
 
             # Update queue;
             f_queue = sorted([dcm for dcm in current_files
@@ -148,12 +114,16 @@ def run_acquisition(scan_dir, template, mask, preprocessing):
 
 
 if __name__ == "__main__":
+
+    # reset log file;
+    reset_log("../log/log.json")
+
     try:
         run_acquisition(
-            "",
-            "",
-            "",
-            preprocessing=True
+            "/home/giuseppe/PNI/Bkup/Projects/rtfmri_dashboard/data_in/scandir",
+            "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/MNI152_T1_2mm_brain.nii.gz",
+            "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/BA17_mask.nii.gz",
+            preprocessing=False
         )
 
     except KeyboardInterrupt:

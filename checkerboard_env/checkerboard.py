@@ -58,10 +58,10 @@ class CheckerBoardEnv(gym.Env):
     def step(self, action):
         
         self.contrast, self.frequency = action
-        observation = np.array([self.contrast, self.frequency])
+        observation = np.array([self.contrast, self.frequency]).astype(np.float64)
 
         # reward is calculated externally;
-        reward = 0
+        reward = 0.0
         terminated = False
         truncated = False
         info = {}
