@@ -1,6 +1,4 @@
 from gymnasium import spaces
-from PIL import ImageEnhance
-
 import gymnasium as gym
 import numpy as np
 import pygame
@@ -9,18 +7,19 @@ import pygame
 class CheckerBoardEnv(gym.Env):
     metadata = {"render_modes": ["human"], "render_fps": 30}
 
-    def __init__(self, render_mode=None, checkerboard=None, inverse=None, cross=None):
+    def __init__(self, render_mode, checkerboard, cross):
         self.screen_width = 600
         self.screen_height = 600
-        self.background = (93, 93, 93)
-        self.checkerboard_size = 350
+        self.background = (0, 0, 0)
+        self.board_size = 350
         self.cross_size = 30
-
-        self.checkerboard = checkerboard
-        self.inverse = inverse
-        self.cross = cross
+        self.screen_size = (self.screen_width, self.screen_height)
         self.screen = None
 
+        self.checkerboard = checkerboard
+        self.cross = cross
+
+        # initialize contrast and frequency spaces;
         self.contrast = 0
         self.frequency = 0
 
@@ -29,13 +28,6 @@ class CheckerBoardEnv(gym.Env):
         self.frequency_low = 0
         self.frequency_high = 1.0
 
-        self.activation = 0
-
-        assert render_mode is None or render_mode in self.metadata["render_modes"]
-        self.fps_controller = pygame.time.Clock()
-        self.render_mode = render_mode
-        self.render_steps = 0
-        
         self.action_space = spaces.Box(low=np.array([self.contrast_low, self.frequency_low]),
                                        high=np.array([self.contrast_high, self.frequency_high]),
                                        dtype=np.float64)
@@ -43,6 +35,13 @@ class CheckerBoardEnv(gym.Env):
         self.observation_space = spaces.Box(low=np.array([self.contrast_low, self.frequency_low]),
                                             high=np.array([self.contrast_high, self.frequency_high]),
                                             dtype=np.float64)
+
+        # render options;
+        assert render_mode is None or render_mode in self.metadata["render_modes"]
+        self.fps_controller = pygame.time.Clock()
+        self.board_render = None
+        self.render_mode = render_mode
+        self.invert = False
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -56,9 +55,14 @@ class CheckerBoardEnv(gym.Env):
         return observation, info
 
     def step(self, action):
-        
         self.contrast, self.frequency = action
-        observation = np.array([self.contrast, self.frequency]).astype(np.float64)
+        observation = np.array([self.contrast, self.frequency], dtype=np.float64)
+
+        # update contrast;
+        if self.screen is not None:
+            self.board_render = self.checkerboard.copy()
+            brightness = self.contrast * 255
+            self.board_render.fill((brightness, brightness, brightness, 128), special_flags=pygame.BLEND_RGBA_MULT)
 
         # reward is calculated externally;
         reward = 0.0
@@ -69,82 +73,56 @@ class CheckerBoardEnv(gym.Env):
         return observation, reward, terminated, truncated, info
 
     def render(self):
-        if self.render_mode == "human":
-            return self._render_env()
-    
-    def _render_env(self):
-
-        if self.screen is None:
-            self.checkerboard = self.image_to_contrast(self.checkerboard, self.checkerboard_size)
-            self.inverse = self.image_to_contrast(self.inverse, self.checkerboard_size)
-            self.cross = self.image_to_contrast(self.cross, self.cross_size)
-
-            pygame.init()
-            self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), vsync=True)
+        # initialize screen if it has not been created yet;
+        if not self.screen:
+            self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.RESIZABLE)
             pygame.display.set_caption("CheckerBoardEnv")
-            
-        if self.render_steps == 0:
-            board, inverse, cross = self.update_image()
 
-            self.sprites = pygame.sprite.Group()
-            self.board_sprite = BoardComponents(board, self.screen.get_rect())
-            self.cross_sprite = BoardComponents(cross, self.screen.get_rect())
-            self.sprites.add(self.board_sprite)
-            self.sprites.add(self.cross_sprite)
-            self.render_steps += 1
+            # load checkerboard assets;
+            self.checkerboard = pygame.image.load(self.checkerboard).convert_alpha()
+            self.cross = pygame.image.load(self.cross).convert_alpha()
 
-        elif self.render_steps > 0:
-            board, inverse, cross = self.update_image()
-            self.board_sprite.image = board
-            
-        self.board_sprite.flicker(inverse, self.frequency)
+            self.checkerboard = pygame.transform.scale(self.checkerboard, (self.board_size, self.board_size))
+            self.cross = pygame.transform.scale(self.cross, (self.cross_size, self.cross_size))
+
+            # create a copy that gets modified and rendered;
+            self.board_render = self.checkerboard.copy()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+
+        # update screen size in case of resizing;
+        board_x, board_y, cross_x, cross_y = self.resize()
+
+        # clear the screen;
         self.screen.fill(self.background)
-        self.sprites.draw(self.screen)
 
+        # raw the images
+        self.screen.blit(self.cross, (cross_x, cross_y))
+
+        if self.invert:
+            self.screen.blit(pygame.transform.flip(self.board_render, True, False), (board_x, board_y))
+        else:
+            self.screen.blit(self.board_render, (board_x, board_y))
+
+        # update the display;
         pygame.display.update()
-        self.fps_controller.tick(self.metadata["render_fps"])
 
-    def update_image(self):
-        board = self.convert_image(self.checkerboard.enhance(self.contrast))
-        inverse = self.convert_image(self.inverse.enhance(self.contrast))
-        cross = self.convert_image(self.cross.enhance(1.0))
-        return board, inverse, cross
+        # invert the flicker state;
+        self.invert = not self.invert
+
+        # Control the frame rate / frequency;
+        self.fps_controller.tick(self.frequency * 30)
+
+    def resize(self):
+        board_x = (self.screen.get_size()[0] - self.checkerboard.get_size()[0]) / 2
+        board_y = (self.screen.get_size()[1] - self.checkerboard.get_size()[1]) / 2
+        cross_x = (self.screen.get_size()[0] - self.cross.get_size()[0]) / 2
+        cross_y = (self.screen.get_size()[1] - self.cross.get_size()[1]) / 2
+        return board_x, board_y, cross_x, cross_y
 
     def close(self):
         if self.screen is not None:
             pygame.display.quit()
             pygame.quit()
-
-    @staticmethod
-    def image_to_contrast(image, size):
-        image = image.resize((size, size))
-        image = ImageEnhance.Contrast(image)
-        return image
-
-    @staticmethod
-    def convert_image(image):
-        return pygame.image.fromstring(image.tobytes(), image.size, image.mode)
-
-
-class BoardComponents(pygame.sprite.Sprite):
-    def __init__(self, image, screen_rect):
-        super().__init__()
-
-        self.image = image
-        self.screen = screen_rect
-        self.rect = self.image.get_rect(center=self.screen.center)
-        self.flicker_timer = 0
-        
-    def flicker(self, inverse, frequency):
-        self.flicker_timer += frequency
-        if self.flicker_timer >= 1.0:
-            self.image = inverse
-            self.rect = self.image.get_rect(center=self.screen.center)
-            self.flicker_timer = 0
-
-    @staticmethod
-    def invert_colors(image):
-        inverted_image = image.copy()
-        inverted_image.fill((255, 255, 255, 255), special_flags=pygame.BLEND_RGB_SUB)
-        return inverted_image
-    

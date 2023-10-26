@@ -44,15 +44,15 @@ def initialize_realtime(env, volume, template, mask, output_dir):
 
 
 def run_acquisition(scan_dir, template, mask, preprocessing):
-    # When it becomes True we can pass to the second volume;
+    # when it becomes True we can pass to the second volume;
     first_volume_has_been_processed = False
 
-    # Initialize variables for rt-scanning;
+    # initialize variables for rt-scanning;
     first_vol, current_series = scan_dicom_folder(scan_dir)
     f_queue = [first_vol]
     processed = []
 
-    # Initialize variables to check for file integrity;
+    # initialize variables to check for file integrity;
     f_hash = ""
     f_size = -1
 
@@ -65,19 +65,20 @@ def run_acquisition(scan_dir, template, mask, preprocessing):
     # ToDo: check data & plots are correct;
     # ToDo: add stop function to the implementation;
     # ToDo: fix environment rendering;
+    # ToDo: add co-registration bypass, in case of reg failure;
 
     while True:
         if first_volume_has_been_processed:
             current_files = os.listdir(scan_dir)
 
-            # Update queue;
+            # update queue;
             f_queue = sorted([dcm for dcm in current_files
                              if dcm not in processed])
 
         if len(f_queue) > 0:
             dcmfile = join(scan_dir, f_queue[0])
 
-            # Check for file integrity;
+            # check for file integrity;
             current_f_hash = check_file_integrity(dcmfile)
             current_f_size = os.stat(dcmfile).st_size
 

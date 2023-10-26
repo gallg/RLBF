@@ -1,13 +1,11 @@
-import ants.core.ants_image
-
 from rtfmri_dashboard.agents.utils import generate_gaussian_kernel, discretize_observation, create_bins
 from rtfmri_dashboard.agents.soft_q_learner import SoftQAgent
 from rtfmri_dashboard.real_time.utils import plot_image
-from checkerboard_env.utils import load_checkerboard
 from rtfmri_dashboard.real_time.preprocessing import *
 from posixpath import join
 
 import rtfmri_dashboard.config as config
+import ants.core.ants_image
 import gymnasium as gym
 import checkerboard_env
 import numpy as np
@@ -15,16 +13,13 @@ import json
 
 
 def load_environment(render_mode=None):
-    board, inverse, cross = load_checkerboard(
-        "../checkerboard_env/assets/checkerboard.png",
-        "../checkerboard_env/assets/cross.png"
-    )
+    board = "../checkerboard_env/assets/checkerboard.png"
+    cross = "../checkerboard_env/assets/cross.png"
 
     env = gym.make(
         "checkerboard-v0",
         render_mode=render_mode,
         checkerboard=board,
-        inverse=inverse,
         cross=cross
     )
     return env
@@ -48,7 +43,6 @@ class RealTimeEnv:
         # settings for real-time processing; #
         self.mask = None
         self.volume_counter = 0
-        self.first_volume_has_arrived = False
         self.block_has_finished = False
         self.resting_state = True
         self.epoch_duration = 0
@@ -61,6 +55,7 @@ class RealTimeEnv:
         self.real_time_data = np.array([])
 
         # initialize environment;
+        self.last_observation = None
         self.current_epoch = 1
         self.previous_state = None
         self.agent = None
@@ -78,7 +73,7 @@ class RealTimeEnv:
         self.serializable_hrf = []
 
     def initialize_env(self):
-        observation, _ = self.environment.reset()
+        self.last_observation, _ = self.environment.reset()
 
         parameters = {
             "learning_rate": config.learning_rate,
@@ -111,7 +106,7 @@ class RealTimeEnv:
 
         # Load Soft-Q agent;
         self.previous_state = discretize_observation(
-            observation,
+            self.last_observation,
             self.bins
         )
         self.agent = SoftQAgent(
@@ -139,8 +134,9 @@ class RealTimeEnv:
 
         _ = self.environment.step(
             [0, 0] if self.resting_state
-            else self.previous_state
+            else self.last_observation
         )
+        self.environment.render()
 
     def get_mask_data(self, volume, mask):
         if not isinstance(mask, ants.core.ants_image.ANTsImage):
@@ -153,7 +149,7 @@ class RealTimeEnv:
         hrf_duration = self.epoch_duration + config.hrf_stimulus_onset \
             if config.hrf_stimulus_onset > 0 else self.epoch_duration
 
-        mu = np.mean(self.temporary_data, axis=0)
+        mu = np.mean(self.temporary_data, axis=1)
         data_mean, data_std = np.mean(mu), np.std(mu)
 
         # save standardized data;
@@ -171,7 +167,6 @@ class RealTimeEnv:
 
         # render & update the environment;
         self.update_rendering()
-        self.environment.render()
 
         if volume is not None:
             self.volume_counter += 1
@@ -207,6 +202,9 @@ class RealTimeEnv:
                  terminated,
                  truncated,
                  info) = self.environment.step(action)
+
+                # update last observation;
+                self.last_observation = next_state
 
                 # get old q-value;
                 old_q_value = self.agent.q_table[self.previous_state]
