@@ -1,8 +1,48 @@
+from rtfmri_dashboard.real_time.utils import dcm_to_array
 from nilearn.glm.first_level import compute_regressor
+from shutil import copyfile
+from posixpath import join
+
 import statsmodels.api as sm
 import nibabel as nib
 import numpy as np
+import pickle
 import ants
+
+
+def plot_image(image, mask, reorient=False, filename=None):
+    ants.viz.plot_ortho_stack([image],
+                              [mask],
+                              filename=filename,
+                              reorient=reorient)
+
+
+def draw_roi(volume, output_dir, radius=10):
+    affine = np.eye(4)
+
+    volume = reorient_volume(volume, affine, to_ants=True)
+    volume.to_filename(join(output_dir, "check_reference.nii.gz"))
+
+    msg = input("x y z:  ")
+    x = int(msg.split(" ")[0])
+    y = int(msg.split(" ")[1])
+    z = int(msg.split(" ")[2])
+
+    img_shape = volume.shape
+    mask = np.zeros(img_shape)
+
+    for x1 in range(img_shape[0]):
+        for y1 in range(img_shape[1]):
+            for z1 in range(img_shape[2]):
+                dist = np.sqrt((x1 - x) ** 2 + (y1 - y) ** 2 + (z1 - z) ** 2)
+                if dist <= radius:
+                    mask[x1, y1, z1] = 1
+
+    # convert mask to ants;
+    mask = ants.from_nibabel(nib.Nifti1Image(mask, affine))
+    mask.to_filename(join(output_dir, "custom_mask.nii.gz"))
+
+    return volume, mask, affine
 
 
 def get_image(image, affine=True, to_ants=False):
@@ -50,6 +90,94 @@ def ants_transform(moving, fixed, transformation):
         transformation
     )
     return registered_img
+
+
+def run_preprocessing(volume, template, affine, transformation=None, transform_type="SyNBold", preprocessing=False):
+    volume = reorient_volume(volume, affine, to_ants=True)
+
+    # calculate transformation matrix if it is not available;
+    if preprocessing and transformation is None:
+        transformation = ants_registration(
+            volume,
+            template,
+            transform_type=transform_type
+        )
+
+    if transformation is not None:
+        volume = ants_transform(volume, template, transformation)
+
+    return volume, transformation
+
+
+def select_preprocessing(
+        first_vol,
+        template,
+        mask,
+        affine,
+        transform_matrix,
+        scan_dir,
+        output_dir):
+
+    while True:
+        volume = dcm_to_array(join(scan_dir, first_vol))
+        msg = input("write '1' for co-registration, '2' for manual ROI definition: ")
+
+        if msg == "1":
+            print("re-running the registration, please select the registration strategy:")
+            prompt = input(
+                "choose 'default' (SynBold) or another one from the documentation:"
+                "https://antspyx.readthedocs.io/en/latest/registration.html "
+            )
+
+            # ToDo: add error handling for incorrect prompts;
+            if prompt == "default":
+                prompt = "SynBold"
+
+            volume, transformation = run_preprocessing(
+                volume,
+                template,
+                affine,
+                transform_type=prompt,
+                preprocessing=True
+            )
+            copyfile(transformation, transform_matrix)
+
+        elif msg == "2":
+            print("defining the ROI manually, please ROI center coordinate!")
+            volume, mask, affine = draw_roi(volume, output_dir)
+            transform_matrix = None
+            template = None
+
+        # plot reference image for visual inspection;
+        plot_image(
+            volume,
+            mask,
+            reorient=False,
+            filename=join(output_dir, "reference.png")
+        )
+
+        # decide whether to end preprocessing or not;
+        prompt = input("end preprocessing? [yes/no]")
+        if prompt == "yes":
+            break
+        elif prompt == "no":
+            continue
+        else:
+            print("invalid input!")
+            continue
+
+    return template, mask, affine, transform_matrix
+
+
+def save_preprocessed_data(data, preprocessed_file):
+    with open(preprocessed_file, "wb") as f:
+        pickle.dump(data, f)
+
+
+def load_preprocessed_data(preprocessed_file):
+    with open(preprocessed_file, "rb") as f:
+        first_vol, standard, roi_mask, affine_matrix, transformation_matrix = pickle.load(f)
+    return first_vol, standard, roi_mask, affine_matrix, transformation_matrix
 
 
 def generate_hrf_regressor(time_length, duration, onset, amplitude, tr=1.0):

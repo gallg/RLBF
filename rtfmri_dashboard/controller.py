@@ -1,133 +1,141 @@
-from real_time.utils import check_file_integrity, dcm_to_array
-from real_time.utils import plot_image, scan_dicom_folder
-from real_time.workflow import RealTimeEnv, run_preprocessing
-from real_time.preprocessing import get_image
-from shutil import copyfile
+from real_time.utils import check_file_integrity, dcm_to_array, reset_log
+from real_time.preprocessing import save_preprocessed_data, load_preprocessed_data
+from real_time.preprocessing import get_image, select_preprocessing
+from real_time.utils import scan_dicom_folder
+from real_time.workflow import RealTimeEnv
 from posixpath import join
-import json
+import time
 import sys
 import os
 
 
-def reset_log(log_path):
-    json_data = []
-    with open(log_path, "w") as json_file:
-        json_file.seek(0)
-        json.dump(json_data, json_file)
-
-
-def initialize_realtime(env, volume, template, mask, output_dir):
-    real_time_env = env(render_mode="human")
-    template, affine = get_image(template, affine=True, to_ants=True)
-    mask, _ = get_image(mask, affine=False, to_ants=True)
+def initialize_realtime(environment, standard, roi_mask, scan_dir, out_dir):
+    real_time_env = environment(render_mode="human")
+    standard, affine_matrix = get_image(standard, affine=True, to_ants=True)
+    roi_mask, _ = get_image(roi_mask, affine=False, to_ants=True)
     transform_matrix = join(output_dir, "fwdtransforms.mat")
+    preprocessed_data = join(output_dir, "preprocessed.pkl")
+    first_vol = None
 
-    if not os.path.isfile(transform_matrix):
-        print("No transformation matrix found, preprocessing reference volume!")
-        volume, transformation = run_preprocessing(
-            volume,
-            template,
-            affine,
+    prompt = input("run preprocessing? [yes/no] ")
+    if prompt == "yes":
+        first_vol, _ = scan_dicom_folder(scan_dir)
+        time.sleep(1)  # make sure the volume has been fully written on disk;
+
+        print("preprocessing reference volume!")
+        standard, roi_mask, affine_matrix, transform_matrix = select_preprocessing(
+            first_vol,
+            standard,
+            roi_mask,
+            affine_matrix,
+            transform_matrix,
+            scan_dir,
+            out_dir
         )
-        copyfile(transformation, transform_matrix)
 
-        # plot reference image;
-        plot_image(
-            volume,
-            mask,
-            reorient=False,
-            filename=join(output_dir, "reference.png")
+        # ToDo: try dill instead of pickle;
+        save_preprocessed_data(
+            [first_vol, standard, roi_mask, affine_matrix, transform_matrix],
+            preprocessed_data
         )
-        print("reference has been preprocessed!")
 
-    return real_time_env, template, affine, mask, transform_matrix
+    elif prompt == "no":
+        if not os.path.isfile(preprocessed_data):
+            raise Exception("No preprocessed data, please run preprocessing")
+        else:
+            preprocessed_data = load_preprocessed_data(preprocessed_data)
+            first_vol, standard, roi_mask, affine_matrix, transform_matrix = preprocessed_data
+
+    return real_time_env, first_vol, standard, roi_mask, affine_matrix, transform_matrix
 
 
-def run_acquisition(scan_dir, template, mask, preprocessing):
-    # when it becomes True we can pass to the second volume;
-    first_volume_has_been_processed = False
-
-    # initialize variables for rt-scanning;
-    first_vol, current_series = scan_dicom_folder(scan_dir)
-    f_queue = [first_vol]
+def run_acquisition(
+        scan_dir,
+        first_vol_path,
+        real_time_env,
+        standard,
+        roi_mask,
+        affine_matrix,
+        transformation_matrix
+):
+    print("**Starting rt-fmri acquisition**")
     processed = []
+    current_volume = None
+
+    if first_vol_path is not None:
+        processed.append(first_vol_path)
 
     # initialize variables to check for file integrity;
     f_hash = ""
     f_size = -1
 
-    output_dir = "../log/"
-    real_time_env = None
-    transformation = None
-    affine = None
-    volume = None
-
-    # ToDo: check data & plots are correct;
-    # ToDo: add stop function to the implementation;
+    # ToDo: add reward line plot to dashboard;
     # ToDo: fix environment rendering;
-    # ToDo: add co-registration bypass, in case of reg failure;
 
     while True:
-        if first_volume_has_been_processed:
-            current_files = os.listdir(scan_dir)
+        current_files = os.listdir(scan_dir)
 
-            # update queue;
-            f_queue = sorted([dcm for dcm in current_files
-                             if dcm not in processed])
+        # update queue;
+        f_queue = sorted([dcm for dcm in current_files
+                          if dcm not in processed])
 
         if len(f_queue) > 0:
-            dcmfile = join(scan_dir, f_queue[0])
+            dcm_file = join(scan_dir, f_queue[0])
 
             # check for file integrity;
-            current_f_hash = check_file_integrity(dcmfile)
-            current_f_size = os.stat(dcmfile).st_size
+            current_f_hash = check_file_integrity(dcm_file)
+            current_f_size = os.stat(dcm_file).st_size
 
             if (current_f_hash != f_hash) or (current_f_size != f_size):
                 f_hash = current_f_hash
                 f_size = current_f_size
             else:
-                volume = dcm_to_array(dcmfile)
+                current_volume = dcm_to_array(dcm_file)
 
         # REAL-TIME PROCESSING;
-        if volume is not None:
-            if not real_time_env:
-                real_time_env, template, affine, mask, transformation = initialize_realtime(
-                    RealTimeEnv,
-                    volume,
-                    template,
-                    mask,
-                    output_dir
-                )
+        if current_volume is not None:
+            real_time_env.run_realtime(
+                current_volume,
+                standard,
+                roi_mask,
+                affine_matrix,
+                transformation_matrix
+            )
 
             # Mark volume as processed;
             processed.append(f_queue[0])
-            first_volume_has_been_processed = True
-
-        if first_volume_has_been_processed and not preprocessing:
-            real_time_env.run_realtime(volume, template, mask, affine, transformation)
-
-        # if preprocessing is true the first volume data is not collected;
-        if preprocessing and volume is not None:
-            preprocessing = False
 
         # reset volume;
-        volume = None
+        current_volume = None
 
 
 if __name__ == "__main__":
+    output_dir = "/home/giuseppe/PNI/Bkup/Projects/rtfmri_dashboard/log"
+    scanner_dir = "/home/giuseppe/PNI/Bkup/Projects/rtfmri_dashboard/data_in/scandir"
+    reset_log(join(output_dir, "log.json"))
 
-    # reset log file;
-    reset_log("../log/log.json")
+    env, path_to_first_vol, template, mask, affine, transformation = initialize_realtime(
+        RealTimeEnv,
+        "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/MNI152_T1_2mm_brain.nii.gz",
+        "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/BA17_mask.nii.gz",
+        scanner_dir,
+        output_dir
+    )
 
     try:
         run_acquisition(
-            "/home/giuseppe/PNI/Bkup/Projects/rtfmri_dashboard/data_in/scandir",
-            "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/MNI152_T1_2mm_brain.nii.gz",
-            "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/BA17_mask.nii.gz",
-            preprocessing=False
+            scanner_dir,
+            path_to_first_vol,
+            env,
+            template,
+            mask,
+            affine,
+            transformation
         )
 
+    # save acquired data and decide whether to restart or not;
     except KeyboardInterrupt:
+        env.stop_realtime()
         msg = input("Restart? [y/n]: ")
         if msg == "y":
             os.execv(sys.executable, ['python'] + [sys.argv[0]])

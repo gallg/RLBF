@@ -1,38 +1,14 @@
 from rtfmri_dashboard.agents.utils import generate_gaussian_kernel, discretize_observation, create_bins
 from rtfmri_dashboard.agents.soft_q_learner import SoftQAgent
-from rtfmri_dashboard.real_time.utils import plot_image
+from rtfmri_dashboard.real_time.utils import load_environment
 from rtfmri_dashboard.real_time.preprocessing import *
 from posixpath import join
 
 import rtfmri_dashboard.config as config
 import ants.core.ants_image
-import gymnasium as gym
 import checkerboard_env
 import numpy as np
 import json
-
-
-def load_environment(render_mode=None):
-    board = "../checkerboard_env/assets/checkerboard.png"
-    cross = "../checkerboard_env/assets/cross.png"
-
-    env = gym.make(
-        "checkerboard-v0",
-        render_mode=render_mode,
-        checkerboard=board,
-        cross=cross
-    )
-    return env
-
-
-def run_preprocessing(volume, template, affine, transformation=None):
-    volume = reorient_volume(volume, affine, to_ants=True)
-
-    if transformation is None:
-        transformation = ants_registration(volume, template)
-
-    volume = ants_transform(volume, template, transformation)
-    return volume, transformation
 
 
 class RealTimeEnv:

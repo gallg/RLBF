@@ -1,7 +1,8 @@
 from functools import partial
+import gymnasium as gym
 import pydicom
 import hashlib
-import ants
+import json
 import re
 import os
 
@@ -54,7 +55,7 @@ def scan_dicom_folder(folder_path):
         if current_series != f_series:
             new_file = next(iter(set(current_files) - set(f_list)))
             new_series = next(iter(set(current_series) - set(f_series)))
-            print("New series found: {0}, Starting acquisition.".format(new_series))
+            print("New series found: {0}".format(new_series))
             break
         else:
             continue
@@ -62,8 +63,21 @@ def scan_dicom_folder(folder_path):
     return new_file, new_series
 
 
-def plot_image(image, mask, reorient=False, filename=None):
-    ants.viz.plot_ortho_stack([image],
-                              [mask],
-                              filename=filename,
-                              reorient=reorient)
+def load_environment(render_mode=None):
+    board = "../checkerboard_env/assets/checkerboard.png"
+    cross = "../checkerboard_env/assets/cross.png"
+
+    env = gym.make(
+        "checkerboard-v0",
+        render_mode=render_mode,
+        checkerboard=board,
+        cross=cross
+    )
+    return env
+
+
+def reset_log(log_path):
+    json_data = []
+    with open(log_path, "w") as json_file:
+        json_file.seek(0)
+        json.dump(json_data, json_file)
