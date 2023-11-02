@@ -48,10 +48,11 @@ def initialize_realtime(environment, standard, roi_mask, scan_dir, out_dir):
             preprocessed_data
         )
 
-    elif prompt == "no":
+    else:
         if not os.path.isfile(preprocessed_data):
             raise Exception("No preprocessed data, please run preprocessing")
         else:
+            print("preprocessed data found, using old preprocessing data!")
             first_vol, standard, roi_mask, affine_matrix, transform_matrix = load_preprocessed_data(preprocessed_data)
 
     return real_time_env, first_vol, standard, roi_mask, affine_matrix, transform_matrix
@@ -99,15 +100,15 @@ def run_acquisition(
                 current_volume = dcm_to_array(dcm_file)
 
         # REAL-TIME PROCESSING;
-        if current_volume is not None:
-            real_time_env.run_realtime(
-                current_volume,
-                standard,
-                roi_mask,
-                affine_matrix,
-                transformation_matrix
-            )
+        real_time_env.run_realtime(
+            current_volume,
+            standard,
+            roi_mask,
+            affine_matrix,
+            transformation_matrix
+        )
 
+        if current_volume is not None:
             # Mark volume as processed;
             processed.append(f_queue[0])
 
