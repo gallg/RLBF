@@ -21,7 +21,6 @@ def initialize_realtime(environment, standard, roi_mask, scan_dir, out_dir):
     transform_matrix = join(out_dir, "fwdtransforms.mat")
     preprocessed_data = join(out_dir, "preprocessed.pkl")
     custom_mask = join(out_dir, "custom_mask.nii.gz")
-    first_vol = None
 
     prompt = input("run preprocessing? [yes/no] ")
     if prompt == "yes":
