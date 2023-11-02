@@ -10,11 +10,17 @@ import os
 
 
 def initialize_realtime(environment, standard, roi_mask, scan_dir, out_dir):
+    # save template and mask paths:
+    path_to_template = standard
+    path_to_mask = roi_mask
+
+    # initialize variables for preprocessing;
     real_time_env = environment(render_mode="human")
     standard, affine_matrix = get_image(standard, affine=True, to_ants=True)
     roi_mask, _ = get_image(roi_mask, affine=False, to_ants=True)
-    transform_matrix = join(output_dir, "fwdtransforms.mat")
-    preprocessed_data = join(output_dir, "preprocessed.pkl")
+    transform_matrix = join(out_dir, "fwdtransforms.mat")
+    preprocessed_data = join(out_dir, "preprocessed.pkl")
+    custom_mask = join(out_dir, "custom_mask.nii.gz")
     first_vol = None
 
     prompt = input("run preprocessing? [yes/no] ")
@@ -33,9 +39,12 @@ def initialize_realtime(environment, standard, roi_mask, scan_dir, out_dir):
             out_dir
         )
 
-        # ToDo: try dill instead of pickle;
+        if standard is None:
+            path_to_template = None
+            path_to_mask = custom_mask
+
         save_preprocessed_data(
-            [first_vol, standard, roi_mask, affine_matrix, transform_matrix],
+            (first_vol, path_to_template, path_to_mask, affine_matrix, transform_matrix),
             preprocessed_data
         )
 
@@ -43,8 +52,7 @@ def initialize_realtime(environment, standard, roi_mask, scan_dir, out_dir):
         if not os.path.isfile(preprocessed_data):
             raise Exception("No preprocessed data, please run preprocessing")
         else:
-            preprocessed_data = load_preprocessed_data(preprocessed_data)
-            first_vol, standard, roi_mask, affine_matrix, transform_matrix = preprocessed_data
+            first_vol, standard, roi_mask, affine_matrix, transform_matrix = load_preprocessed_data(preprocessed_data)
 
     return real_time_env, first_vol, standard, roi_mask, affine_matrix, transform_matrix
 
@@ -59,11 +67,8 @@ def run_acquisition(
         transformation_matrix
 ):
     print("**Starting rt-fmri acquisition**")
-    processed = []
+    processed = [first_vol_path]
     current_volume = None
-
-    if first_vol_path is not None:
-        processed.append(first_vol_path)
 
     # initialize variables to check for file integrity;
     f_hash = ""
@@ -90,6 +95,7 @@ def run_acquisition(
                 f_hash = current_f_hash
                 f_size = current_f_size
             else:
+                time.sleep(0.030)
                 current_volume = dcm_to_array(dcm_file)
 
         # REAL-TIME PROCESSING;

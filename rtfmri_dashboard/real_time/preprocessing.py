@@ -7,6 +7,7 @@ import statsmodels.api as sm
 import nibabel as nib
 import numpy as np
 import pickle
+import pprint
 import ants
 
 
@@ -176,8 +177,29 @@ def save_preprocessed_data(data, preprocessed_file):
 
 def load_preprocessed_data(preprocessed_file):
     with open(preprocessed_file, "rb") as f:
-        first_vol, standard, roi_mask, affine_matrix, transformation_matrix = pickle.load(f)
-    return first_vol, standard, roi_mask, affine_matrix, transformation_matrix
+        labels = ["first_vol", "template", "mask", "affine", "transformation"]
+        data = pickle.load(f)
+        preprocessed = {}
+
+        for idx, label in enumerate(labels):
+            preprocessed[label] = data[idx]
+
+        print("please check preprocessed data:")
+        pprint.pprint(preprocessed, indent=4)
+        prompt = input("press a key to continue or restart the program if the data is incorrect!")
+
+        # load data;
+        if preprocessed["template"] is not None:
+            template = ants.image_read(preprocessed[labels[1]])
+        else:
+            template = preprocessed[labels[1]]
+
+        first_vol = preprocessed[labels[0]]
+        mask = ants.image_read(preprocessed[labels[2]])
+        affine = preprocessed[labels[3]]
+        transformation = preprocessed[labels[4]]
+
+    return first_vol, template, mask, affine, transformation
 
 
 def generate_hrf_regressor(time_length, duration, onset, amplitude, tr=1.0):

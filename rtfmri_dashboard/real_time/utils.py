@@ -1,5 +1,6 @@
 from functools import partial
 import gymnasium as gym
+import numpy as np
 import pydicom
 import hashlib
 import json
@@ -81,3 +82,10 @@ def reset_log(log_path):
     with open(log_path, "w") as json_file:
         json_file.seek(0)
         json.dump(json_data, json_file)
+
+
+def pad_array(array, reference):
+    padding_size = abs(np.max(reference.shape) - array.shape[0])
+    if padding_size > 0:
+        array = np.pad(array, (0, padding_size))
+    return array

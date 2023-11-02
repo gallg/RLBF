@@ -1,6 +1,6 @@
 from rtfmri_dashboard.agents.utils import generate_gaussian_kernel, discretize_observation, create_bins
+from rtfmri_dashboard.real_time.utils import load_environment, pad_array
 from rtfmri_dashboard.agents.soft_q_learner import SoftQAgent
-from rtfmri_dashboard.real_time.utils import load_environment
 from rtfmri_dashboard.real_time.preprocessing import *
 from posixpath import join
 
@@ -31,7 +31,7 @@ class RealTimeEnv:
         self.real_time_data = np.array([])
 
         # initialize environment;
-        self.last_observation = None
+        self.observation = None
         self.current_epoch = 1
         self.previous_state = None
         self.agent = None
@@ -49,7 +49,7 @@ class RealTimeEnv:
         self.serializable_hrf = []
 
     def initialize_env(self):
-        self.last_observation, _ = self.environment.reset()
+        self.observation, _ = self.environment.reset()
 
         parameters = {
             "learning_rate": config.learning_rate,
@@ -82,7 +82,7 @@ class RealTimeEnv:
 
         # Load Soft-Q agent;
         self.previous_state = discretize_observation(
-            self.last_observation,
+            self.observation,
             self.bins
         )
         self.agent = SoftQAgent(
@@ -110,7 +110,7 @@ class RealTimeEnv:
 
         _ = self.environment.step(
             [0, 0] if self.resting_state
-            else self.last_observation
+            else self.observation
         )
         self.environment.render()
 
@@ -146,6 +146,7 @@ class RealTimeEnv:
 
         if volume is not None:
             self.volume_counter += 1
+            print(self.volume_counter)
 
             # preprocess volume;
             volume, transformation = run_preprocessing(
@@ -167,24 +168,22 @@ class RealTimeEnv:
             )
 
             self.temporary_data = data if self.temporary_data.shape[0] == 0 \
-                else np.vstack([self.temporary_data, data])
+                else np.vstack([self.temporary_data, pad_array(data, self.temporary_data)])
 
             # if block has finished, make environment step;
             if self.volume_counter == self.epoch_duration:
+                last_action = self.observation
                 action = self.agent.soft_q_action_selection()
 
-                (next_state,
+                (self.observation,
                  _,
                  terminated,
                  truncated,
                  info) = self.environment.step(action)
 
-                # update last observation;
-                self.last_observation = next_state
-
                 # get old q-value;
                 old_q_value = self.agent.q_table[self.previous_state]
-                next_state = discretize_observation(next_state, self.bins)
+                next_state = discretize_observation(self.observation, self.bins)
                 reward, hrf_duration = self.calculate_reward()
 
                 # compute next q-value and update q-table;
@@ -199,7 +198,7 @@ class RealTimeEnv:
 
                 # log current status and start a new epoch;
                 self.log_realtime(
-                    action,
+                    last_action,
                     reward,
                     hrf_duration
                 )
