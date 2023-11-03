@@ -186,7 +186,7 @@ def load_preprocessed_data(preprocessed_file):
 
         print("please check preprocessed data:")
         pprint.pprint(preprocessed, indent=4)
-        prompt = input("press a key to continue or restart the program if the data is incorrect!")
+        input("press a key to continue or restart the program if the data is incorrect!")
 
         # load data;
         if preprocessed["template"] is not None:

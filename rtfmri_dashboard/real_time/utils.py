@@ -1,5 +1,4 @@
 from functools import partial
-import gymnasium as gym
 import numpy as np
 import pydicom
 import hashlib
@@ -62,19 +61,6 @@ def scan_dicom_folder(folder_path):
             continue
 
     return new_file, new_series
-
-
-def load_environment(render_mode=None):
-    board = "../checkerboard_env/assets/checkerboard.png"
-    cross = "../checkerboard_env/assets/cross.png"
-
-    env = gym.make(
-        "checkerboard-v0",
-        render_mode=render_mode,
-        checkerboard=board,
-        cross=cross
-    )
-    return env
 
 
 def reset_log(log_path):

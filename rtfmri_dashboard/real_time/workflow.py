@@ -1,20 +1,23 @@
-from rtfmri_dashboard.agents.utils import generate_gaussian_kernel, discretize_observation, create_bins
-from rtfmri_dashboard.real_time.utils import load_environment, pad_array
-from rtfmri_dashboard.agents.soft_q_learner import SoftQAgent
+from rtfmri_dashboard.agents.utils import generate_gaussian_kernel, discretize_observation
+from rtfmri_dashboard.agents.soft_q_learner import SoftQAgent, create_bins
+from rtfmri_dashboard.real_time.utils import pad_array
+from rtfmri_dashboard.envs.checkerboard import CheckerBoardEnv
 from rtfmri_dashboard.real_time.preprocessing import *
 from posixpath import join
 
 import rtfmri_dashboard.config as config
 import ants.core.ants_image
-import checkerboard_env
 import numpy as np
 import json
 
 
 class RealTimeEnv:
-    def __init__(self, render_mode=None):
+    def __init__(self):
         # load environment;
-        self.environment = load_environment(render_mode)
+        self.environment = CheckerBoardEnv(
+            board="../rtfmri_dashboard/envs/assets/checkerboard.png",
+            cross="../rtfmri_dashboard/envs/assets/cross.png"
+        )
 
         # settings for real-time processing; #
         self.mask = None
@@ -24,7 +27,7 @@ class RealTimeEnv:
         self.epoch_duration = 0
         self.hrf = None
         self.serializable_hrf = None
-        self.output_dir = "../log/"
+        self.output_dir = "../log"
 
         # store real-time data;
         self.temporary_data = np.array([])
@@ -36,20 +39,20 @@ class RealTimeEnv:
         self.previous_state = None
         self.agent = None
         self.bins = None
+        self.reward = []
         self.initialize_env()
         self.initialize_hrf()
 
         # initialize log;
         self.log_realtime(
             [0, 0],
-            0,
             self.epoch_duration
         )
 
         self.serializable_hrf = []
 
     def initialize_env(self):
-        self.observation, _ = self.environment.reset()
+        self.observation = self.environment.reset()
 
         parameters = {
             "learning_rate": config.learning_rate,
@@ -80,7 +83,8 @@ class RealTimeEnv:
             config.kernel_sigma
         )
 
-        # Load Soft-Q agent;
+        # Load Soft-Q agent to get its functionalities;
+        # The agent itself is not fitted;
         self.previous_state = discretize_observation(
             self.observation,
             self.bins
@@ -108,11 +112,12 @@ class RealTimeEnv:
         if self.volume_counter > config.rest_size:
             self.resting_state = False
 
-        _ = self.environment.step(
-            [0, 0] if self.resting_state
-            else self.observation
+        self.environment.set(
+            self.resting_state,
+            self.observation[0],
+            self.observation[1]
         )
-        self.environment.render()
+        self.environment.step()
 
     def get_mask_data(self, volume, mask):
         if not isinstance(mask, ants.core.ants_image.ANTsImage):
@@ -146,7 +151,7 @@ class RealTimeEnv:
 
         if volume is not None:
             self.volume_counter += 1
-            print(self.volume_counter)
+            print("Volume: ", self.volume_counter)
 
             # preprocess volume;
             volume, transformation = run_preprocessing(
@@ -160,31 +165,28 @@ class RealTimeEnv:
             data = self.get_mask_data(volume, mask)
 
             # plot new, preprocessed, volume;
-            plot_image(
-                volume,
-                mask,
-                reorient=False,
-                filename=join(self.output_dir, "volume.png")
-            )
+            # plot_image(
+            #     volume,
+            #     mask,
+            #     reorient=False,
+            #     filename=join(self.output_dir, "volume.png")
+            # )
 
             self.temporary_data = data if self.temporary_data.shape[0] == 0 \
                 else np.vstack([self.temporary_data, pad_array(data, self.temporary_data)])
 
             # if block has finished, make environment step;
             if self.volume_counter == self.epoch_duration:
-                last_action = self.observation
-                action = self.agent.soft_q_action_selection()
-
-                (self.observation,
-                 _,
-                 terminated,
-                 truncated,
-                 info) = self.environment.step(action)
+                last_observation = self.observation
+                self.observation = self.agent.soft_q_action_selection()
 
                 # get old q-value;
                 old_q_value = self.agent.q_table[self.previous_state]
                 next_state = discretize_observation(self.observation, self.bins)
+
+                # get reward;
                 reward, hrf_duration = self.calculate_reward()
+                self.reward.append(reward)
 
                 # compute next q-value and update q-table;
                 self.agent.q_table = self.agent.update_q_table(reward, next_state, old_q_value)
@@ -198,19 +200,19 @@ class RealTimeEnv:
 
                 # log current status and start a new epoch;
                 self.log_realtime(
-                    last_action,
-                    reward,
+                    last_observation,
                     hrf_duration
                 )
                 self.reset_realtime()
 
-    def log_realtime(self, action, reward, hrf_duration):
+    def log_realtime(self, action, hrf_duration):
+        serializable_reward = json.dumps(self.reward)
         serializable_data = json.dumps(self.real_time_data[-hrf_duration:].tolist())
 
         log = {
             "contrast": action[0],
             "frequency": action[1],
-            "reward": reward,
+            "reward": serializable_reward,
             "resting_state": self.resting_state,
             "epoch": self.current_epoch,
             "hrf": self.serializable_hrf,

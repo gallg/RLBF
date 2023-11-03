@@ -33,7 +33,7 @@
         canvas {
             border: 1px solid #ccc;
             max-width: 100%;
-            max-height: 50%;
+            max-height: 300px;
         }
     </style>
 </head>
@@ -45,9 +45,6 @@
         </div>
         <div class="variable">
             Frequency: <span id="frequency"></span>
-        </div>
-        <div class="variable">
-            Reward: <span id="reward"></span>
         </div>
         <div class="variable">
             Resting State: <span id="resting_state"></span>
@@ -65,22 +62,22 @@
         </div>
         <div class="image">
             <p>Real-Time Data</p>
-            <canvas id="image3Canvas"></canvas>
+            <canvas id="image3Canvas" width="160" height="80"></canvas>
+            <canvas id="rewardCanvas" width="160" height="80"></canvas>
         </div>
     </div>
     <script src="../../data_in/dependencies/Chart.js"></script>
     <script>
-        let myChart = null; // Declare a variable to store the chart instance
-        const canvas = document.getElementById('image3Canvas'); // Get the canvas element
-        let lastModified = null;
-        function createChart() {
-            // Create a Chart.js line chart on the canvas (image3Canvas)
-            const ctx = canvas.getContext('2d');
+        let myChart = null; // Main chart instance
+        let rewardChart = null; // Reward chart instance
+        const canvas = document.getElementById('image3Canvas');
+        const rewardCanvas = document.getElementById('rewardCanvas');
 
-            myChart = new Chart(ctx, {
-                type: 'line',
+        function createChart(ctx, type, xTitle, yTitle) {
+            return new Chart(ctx, {
+                type: type,
                 data: {
-                    labels: [], // You can add labels here if needed
+                    labels: [],
                     datasets: [],
                 },
                 options: {
@@ -89,14 +86,14 @@
                             display: true,
                             title: {
                                 display: true,
-                                text: 'Time',
+                                text: xTitle,
                             },
                         },
                         y: {
                             display: true,
                             title: {
                                 display: true,
-                                text: 'Value',
+                                text: yTitle,
                             },
                         },
                     },
@@ -104,67 +101,68 @@
             });
         }
 
-        createChart(); // Create the chart once
+        const ctx = canvas.getContext('2d');
+        const rewardCtx = rewardCanvas.getContext('2d');
+
+        myChart = createChart(ctx, 'line', 'Time', 'Value');
+        rewardChart = createChart(rewardCtx, 'line', 'Time', 'Reward Value');
 
         function updateVariables() {
-        const headers = new Headers();
-        if (lastModified) {
-            headers.append('If-Modified-Since', lastModified);
+            // Fetch and update the data
+            fetch('../../log/log.json')
+                .then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    }
+                    throw new Error('Network response was not ok.');
+                })
+                .then(data => {
+                    const latestData = data[data.length - 1];
+
+                    document.getElementById('contrast').textContent = latestData.contrast;
+                    document.getElementById('frequency').textContent = latestData.frequency;
+                    document.getElementById('resting_state').textContent = latestData.resting_state;
+                    document.getElementById('epoch').textContent = latestData.epoch;
+
+                    const hrf = JSON.parse(data[0].hrf);
+                    const fmriData = JSON.parse(latestData.fmri_data);
+                    const reward = JSON.parse(latestData.reward);
+
+                    if (!Array.isArray(hrf) || !Array.isArray(fmriData) || !Array.isArray(reward)) {
+                        console.error("Data format is incorrect.");
+                        return;
+                    }
+
+                    myChart.data.labels = Array.from({ length: hrf.length }, (_, i) => i + 1);
+                    myChart.data.datasets = [
+                        {
+                            label: 'HRF',
+                            borderColor: 'red',
+                            data: hrf,
+                        },
+                        {
+                            label: 'fMRI Data',
+                            borderColor: 'blue',
+                            data: fmriData,
+                        },
+                    ];
+                    myChart.update();
+
+                    rewardChart.data.labels = Array.from({ length: reward.length + 2 }, (_, i) => i + 1);
+                    rewardChart.data.datasets = [
+                        {
+                            label: 'Reward',
+                            borderColor: 'green',
+                            data: reward,
+                        },
+                    ];
+                    rewardChart.update();
+                })
+                .catch(error => console.error('Error:', error));
         }
 
-        fetch('../../log/log.json', { method: 'GET', headers })
-            .then(response => {
-                if (response.status === 304) {
-                    // No modification, no need to update
-                    return;
-                }
-
-                if (response.status === 200) {
-                    // There's new data
-                    lastModified = response.headers.get('Last-Modified');
-
-                    response.json().then(data => {
-                        const data_size = data.length-1;
-
-                        document.getElementById('contrast').textContent = data[data_size].contrast;
-                        document.getElementById('frequency').textContent = data[data_size].frequency;
-                        document.getElementById('reward').textContent = data[data_size].reward;
-                        document.getElementById('resting_state').textContent = data[data_size].resting_state;
-                        document.getElementById('epoch').textContent = data[data_size].epoch;
-
-                        const hrf = JSON.parse(data[0].hrf);
-                        const fmriData = JSON.parse(data[data_size].fmri_data);
-
-                        if (!Array.isArray(hrf) || !Array.isArray(fmriData)) {
-                            console.error("Data format is incorrect. Ensure that hrf and fmri_data are arrays.");
-                            return;
-                        }
-
-                        // generates X-axis labels;
-                        myChart.data.labels = Array.from({ length: hrf.length }, (_, i) => i + 1);
-
-                        // plot data;
-                        myChart.data.datasets = [
-                            {
-                                label: 'HRF',
-                                borderColor: 'red',
-                                data: hrf,
-                            },
-                            {
-                                label: 'fMRI Data',
-                                borderColor: 'blue',
-                                data: fmriData,
-                            },
-                        ];
-
-                        myChart.update();
-                    });
-                }
-            })
-            .catch(error => console.error(error));
-    }
-        // Update variables ;
-        updateVariables();
+        setInterval(updateVariables, 5000)
+        // updateVariables();
     </script>
 </body>
 </html>

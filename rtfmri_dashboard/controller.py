@@ -15,7 +15,7 @@ def initialize_realtime(environment, standard, roi_mask, scan_dir, out_dir):
     path_to_mask = roi_mask
 
     # initialize variables for preprocessing;
-    real_time_env = environment(render_mode="human")
+    real_time_env = environment()
     standard, affine_matrix = get_image(standard, affine=True, to_ants=True)
     roi_mask, _ = get_image(roi_mask, affine=False, to_ants=True)
     transform_matrix = join(out_dir, "fwdtransforms.mat")
@@ -74,8 +74,9 @@ def run_acquisition(
     f_hash = ""
     f_size = -1
 
-    # ToDo: add reward line plot to dashboard;
-    # ToDo: fix environment rendering;
+    # ToDo: adjust render behavior to FPS lock;
+    # ToDo: fix checkerboard size;
+    # ToDo: report current volume;
 
     while True:
         current_files = os.listdir(scan_dir)
@@ -94,8 +95,8 @@ def run_acquisition(
             if (current_f_hash != f_hash) or (current_f_size != f_size):
                 f_hash = current_f_hash
                 f_size = current_f_size
+                time.sleep(0.010)
             else:
-                time.sleep(0.030)
                 current_volume = dcm_to_array(dcm_file)
 
         # REAL-TIME PROCESSING;
