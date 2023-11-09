@@ -20,6 +20,7 @@ rest_size = settings.getint('REAL_TIME', 'rest_size')
 hrf_stimulus_onset = settings.getint('REAL_TIME', 'hrf_stimulus_onset')
 hrf_amplitude = settings.getfloat('REAL_TIME', 'hrf_amplitude')
 repetition_time = settings.getfloat('REAL_TIME', 'tr')
+render_only = settings.getboolean('REAL_TIME', 'render_only')
 
 # ------------------------------------------------
 
@@ -36,3 +37,10 @@ min_temperature = settings.getfloat('Q_LEARNING', 'min_temperature')
 max_temperature = settings.getfloat('Q_LEARNING', 'max_temperature')
 reduce_temperature = settings.getboolean('Q_LEARNING', 'reduce_temperature')
 decay_rate = settings.getfloat('Q_LEARNING', 'decay_rate')
+
+# ------------------------------------------------
+
+# environment settings;
+board_size = settings.getint('ENVIRONMENT', 'board_size')
+cross_size = settings.getint('ENVIRONMENT', 'cross_size')
+fps = settings.getint('ENVIRONMENT', 'fps')

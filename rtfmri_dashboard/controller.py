@@ -75,8 +75,7 @@ def run_acquisition(
     f_size = -1
 
     # ToDo: adjust render behavior to FPS lock;
-    # ToDo: fix checkerboard size;
-    # ToDo: report current volume;
+    # ToDo: log the Q-table in a proper way;
 
     while True:
         current_files = os.listdir(scan_dir)

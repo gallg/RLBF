@@ -1,3 +1,4 @@
+from rtfmri_dashboard import config
 import numpy as np
 import pygame
 
@@ -6,8 +7,8 @@ class CheckerBoardEnv:
     def __init__(self, board, cross):
         self.screen_width = 600
         self.screen_height = 600
-        self.board_size = 350
-        self.cross_size = 30
+        self.board_size = config.board_size
+        self.cross_size = config.cross_size
 
         self.contrast = 0
         self.frequency = 0
@@ -70,7 +71,7 @@ class CheckerBoardEnv:
         self.screen.blit(self.cross, cross_center)
 
         pygame.display.flip()
-        pygame.time.Clock().tick(30)
+        pygame.time.Clock().tick(config.fps)
 
     def event_handler(self):
         for event in pygame.event.get():
@@ -78,7 +79,7 @@ class CheckerBoardEnv:
                 self.close()
             elif event.type == pygame.VIDEORESIZE:
                 new_size = event.dict['size']
-                self.screen = pygame.display.set_mode(new_size, pygame.RESIZABLE)
+                self.screen = pygame.display.set_mode(new_size, pygame.FULLSCREEN)
 
     @staticmethod
     def close():

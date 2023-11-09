@@ -125,7 +125,14 @@
                     document.getElementById('epoch').textContent = latestData.epoch;
 
                     const hrf = JSON.parse(data[0].hrf);
-                    const fmriData = JSON.parse(latestData.fmri_data);
+                    let fmriData = JSON.parse(latestData.fmri_data);
+                    let length_difference = Math.abs(hrf.length - fmriData.length);
+
+                    console.log(length_difference);
+                    if (length_difference > 0) {
+                        fmriData = Array(length_difference).fill(0).concat(fmriData);
+                    }
+
                     const reward = JSON.parse(latestData.reward);
 
                     if (!Array.isArray(hrf) || !Array.isArray(fmriData) || !Array.isArray(reward)) {

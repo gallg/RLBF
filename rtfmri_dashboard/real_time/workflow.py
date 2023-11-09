@@ -8,6 +8,8 @@ from posixpath import join
 import rtfmri_dashboard.config as config
 import ants.core.ants_image
 import numpy as np
+import matplotlib
+import threading
 import json
 
 
@@ -43,7 +45,11 @@ class RealTimeEnv:
         self.initialize_env()
         self.initialize_hrf()
 
+        self.logger = None
+        self.plot_volume = None
+
         # initialize log;
+        matplotlib.use("Agg")
         self.log_realtime(
             [0, 0],
             self.epoch_duration
@@ -76,6 +82,7 @@ class RealTimeEnv:
             scale=config.q_table_noise_sigma,
             size=q_table_shape
         )
+        # self.log_q_table(q_table)
 
         # Generate RBF kernel;
         kernel = generate_gaussian_kernel(
@@ -119,6 +126,15 @@ class RealTimeEnv:
         )
         self.environment.step()
 
+    def render_only(self):
+        self.observation = (1.0, 0.9)
+        self.volume_counter += 1
+        self.update_rendering()
+
+        print("Volume: ", self.volume_counter)
+        if self.volume_counter == self.epoch_duration:
+            self.reset_realtime()
+
     def get_mask_data(self, volume, mask):
         if not isinstance(mask, ants.core.ants_image.ANTsImage):
             self.mask = ants.image_read(mask)
@@ -127,9 +143,6 @@ class RealTimeEnv:
         return data[np.nonzero(data)]
 
     def calculate_reward(self):
-        hrf_duration = self.epoch_duration + config.hrf_stimulus_onset \
-            if config.hrf_stimulus_onset > 0 else self.epoch_duration
-
         mu = np.mean(self.temporary_data, axis=1)
         data_mean, data_std = np.mean(mu), np.std(mu)
 
@@ -138,16 +151,28 @@ class RealTimeEnv:
         self.real_time_data = standardized_data if self.real_time_data.shape[0] == 0 \
             else np.hstack([self.real_time_data, standardized_data])
 
+        # overall function duration (allows overlaps between blocks);
+        hrf_duration = self.epoch_duration + config.hrf_stimulus_onset
+
+        # handle block overlaps;
+        current_hrf = self.hrf.reshape(-1, 1) if self.current_epoch > 1 \
+            else self.hrf[config.hrf_stimulus_onset:].reshape(-1, 1)
+
         reward = run_glm(
             self.real_time_data[-hrf_duration:].reshape(-1, 1),
-            self.hrf.reshape(-1, 1)
+            current_hrf
         )
         return reward, hrf_duration
 
     def run_realtime(self, volume, template, mask, affine, transformation=None):
 
-        # render & update the environment;
-        self.update_rendering()
+        if config.render_only and volume is not None:
+            # just render with high contrast & frequency;
+            self.render_only()
+            volume = None
+        else:
+            # render & update the environment;
+            self.update_rendering()
 
         if volume is not None:
             self.volume_counter += 1
@@ -161,16 +186,20 @@ class RealTimeEnv:
                 transformation
             )
 
+            # plot new, preprocessed, volume;
+            if not (self.plot_volume and self.plot_volume.is_alive()):
+                self.plot_volume = threading.Thread(
+                    target=plot_image, args=(
+                        volume,
+                        mask,
+                        False,
+                        join(self.output_dir, "volume.png")
+                    )
+                )
+                self.plot_volume.start()
+
             # acquire data;
             data = self.get_mask_data(volume, mask)
-
-            # plot new, preprocessed, volume;
-            # plot_image(
-            #     volume,
-            #     mask,
-            #     reorient=False,
-            #     filename=join(self.output_dir, "volume.png")
-            # )
 
             self.temporary_data = data if self.temporary_data.shape[0] == 0 \
                 else np.vstack([self.temporary_data, pad_array(data, self.temporary_data)])
@@ -199,11 +228,26 @@ class RealTimeEnv:
                 )
 
                 # log current status and start a new epoch;
-                self.log_realtime(
-                    last_observation,
-                    hrf_duration
-                )
+                if not (self.logger and self.logger.is_alive()):
+                    self.logger = threading.Thread(
+                        target=self.log_realtime, args=(
+                            last_observation,
+                            hrf_duration
+                        )
+                    )
+                    self.logger.start()
+
+                # log Q-table;
+                # self.log_q_table(self.agent.q_table)
+
+                # reset important variable and start new epoch;
                 self.reset_realtime()
+
+    # def log_q_table(self, q_table):
+    #     plt.figure()
+    #     plt.imshow(q_table)
+    #     plt.savefig(join(self.output_dir, "q_table.png"))
+    #     plt.close()
 
     def log_realtime(self, action, hrf_duration):
         serializable_reward = json.dumps(self.reward)

@@ -203,14 +203,9 @@ def load_preprocessed_data(preprocessed_file):
 
 
 def generate_hrf_regressor(time_length, duration, onset, amplitude, tr=1.0):
-    # steps = int(time_length / tr)
 
     frame_times = np.linspace(0, time_length * tr, time_length)
     exp_condition = np.array((onset, duration, amplitude)).reshape(3, 1)
-
-    # Generate boxcar stimulus;
-    stim = np.zeros_like(frame_times)
-    stim[(frame_times > onset) * (frame_times <= onset + duration)] = amplitude
 
     # Compute convolved HRF function;
     signal, _ = compute_regressor(
