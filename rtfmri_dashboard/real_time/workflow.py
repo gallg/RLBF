@@ -8,8 +8,8 @@ from posixpath import join
 import rtfmri_dashboard.config as config
 import ants.core.ants_image
 import numpy as np
-import matplotlib
 import threading
+import cv2
 import json
 
 
@@ -49,7 +49,6 @@ class RealTimeEnv:
         self.plot_volume = None
 
         # initialize log;
-        matplotlib.use("Agg")
         self.log_realtime(
             [0, 0],
             self.epoch_duration
@@ -66,7 +65,8 @@ class RealTimeEnv:
             "min_temperature": config.min_temperature,
             "max_temperature": config.max_temperature,
             "reduce_temperature": config.reduce_temperature,
-            "decay_rate": config.decay_rate
+            "decay_rate": config.decay_rate,
+            "num_bins_per_obs": config.num_bins_per_observation
         }
 
         # generate bins;
@@ -103,6 +103,12 @@ class RealTimeEnv:
             **parameters
         )
 
+        # log Q-table;
+        self.log_q_table(
+            self.agent.q_table,
+            join(self.output_dir, "q_table.png")
+        )
+
     def initialize_hrf(self):
         self.epoch_duration = config.block_size + config.rest_size
         self.hrf = generate_hrf_regressor(
@@ -125,15 +131,6 @@ class RealTimeEnv:
             self.observation[1]
         )
         self.environment.step()
-
-    def render_only(self):
-        self.observation = (1.0, 0.9)
-        self.volume_counter += 1
-        self.update_rendering()
-
-        print("Volume: ", self.volume_counter)
-        if self.volume_counter == self.epoch_duration:
-            self.reset_realtime()
 
     def get_mask_data(self, volume, mask):
         if not isinstance(mask, ants.core.ants_image.ANTsImage):
@@ -167,12 +164,11 @@ class RealTimeEnv:
     def run_realtime(self, volume, template, mask, affine, transformation=None):
 
         if config.render_only and volume is not None:
-            # just render with high contrast & frequency;
-            self.render_only()
-            volume = None
-        else:
-            # render & update the environment;
-            self.update_rendering()
+            # render only with high contrast & frequency;
+            self.observation = np.array([1.0, 0.9])
+
+        # render & update the environment;
+        self.update_rendering()
 
         if volume is not None:
             self.volume_counter += 1
@@ -207,7 +203,9 @@ class RealTimeEnv:
             # if block has finished, make environment step;
             if self.volume_counter == self.epoch_duration:
                 last_observation = self.observation
-                self.observation = self.agent.soft_q_action_selection()
+
+                if not config.render_only:
+                    self.observation = self.agent.soft_q_action_selection()
 
                 # get old q-value;
                 old_q_value = self.agent.q_table[self.previous_state]
@@ -237,17 +235,8 @@ class RealTimeEnv:
                     )
                     self.logger.start()
 
-                # log Q-table;
-                # self.log_q_table(self.agent.q_table)
-
                 # reset important variable and start new epoch;
                 self.reset_realtime()
-
-    # def log_q_table(self, q_table):
-    #     plt.figure()
-    #     plt.imshow(q_table)
-    #     plt.savefig(join(self.output_dir, "q_table.png"))
-    #     plt.close()
 
     def log_realtime(self, action, hrf_duration):
         serializable_reward = json.dumps(self.reward)
@@ -275,6 +264,26 @@ class RealTimeEnv:
         with open(join(self.output_dir, "log.json"), "w") as json_file:
             json_file.seek(0)
             json.dump(json_data, json_file, indent=4)
+
+        # log Q-table;
+        self.log_q_table(
+            self.agent.q_table,
+            join(self.output_dir, "q_table.png")
+        )
+
+    @staticmethod
+    def log_q_table(q_table, output_path):
+        scale_factor = 80
+        data_scaled = (q_table * 255).astype(np.uint8)
+        colored_image = cv2.cvtColor(data_scaled, cv2.COLOR_GRAY2RGB)
+        upscaled_image = cv2.resize(
+            colored_image,
+            None,
+            fx=scale_factor,
+            fy=scale_factor,
+            interpolation=cv2.INTER_NEAREST
+        )
+        cv2.imwrite(output_path, upscaled_image)
 
     def reset_realtime(self):
         self.resting_state = True

@@ -2,38 +2,57 @@
 <html lang="en">
 <head>
     <title>Real-Time Report</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body {
             font-family: Arial, sans-serif;
             text-align: center;
             background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
         }
         .container {
-            width: 80%;
+            width: 90%;
             margin: 20px auto;
             padding: 20px;
             background-color: #fff;
             border: 1px solid #ccc;
             border-radius: 5px;
+            box-sizing: border-box;
         }
         h1 {
             margin-bottom: 20px;
         }
         .variable {
             text-align: right;
+            margin-bottom: 10px;
         }
         .image {
-            margin: 10px;
+            margin: 10px 0;
             text-align: left;
         }
         .image img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin-bottom: 10px;
+        }
+        table {
             width: 100%;
-            max-width: 600px;
+            table-layout: fixed;
+        }
+        td {
+            text-align: center;
+            padding: 20px; /* Adjust the padding as needed */
         }
         canvas {
             border: 1px solid #ccc;
+            width: 100%;
             max-width: 100%;
+            height: auto;
             max-height: 300px;
+            display: block;
+            margin-bottom: 10px;
         }
     </style>
 </head>
@@ -52,18 +71,26 @@
         <div class="variable">
             Epoch: <span id="epoch"></span>
         </div>
-        <div class="image">
-            <p>Reference Registration:</p>
-            <img src="../../log/reference.png" alt="Registration">
-        </div>
-        <div class="image">
-            <p>Current Volume:</p>
-            <img src="../../log/volume.png" alt="Current Volume">
-        </div>
+        <table>
+            <tr>
+                <td class="image" id="referenceImageContainer">
+                    <p>Reference Registration:</p>
+                    <img id="referenceImage" alt="Registration">
+                </td>
+                <td class="image" id="volumeImageContainer">
+                    <p>Current Volume:</p>
+                    <img id="volumeImage" alt="Current Volume">
+                </td>
+                <td class="image" id="qTableImageContainer">
+                    <p>Soft Q-Table:</p>
+                    <img id="qTableImage" alt="Soft Q-Table">
+                </td>
+            </tr>
+        </table>
         <div class="image">
             <p>Real-Time Data</p>
-            <canvas id="image3Canvas" width="160" height="80"></canvas>
-            <canvas id="rewardCanvas" width="160" height="80"></canvas>
+            <canvas id="image3Canvas"></canvas>
+            <canvas id="rewardCanvas"></canvas>
         </div>
     </div>
     <script src="../../data_in/dependencies/Chart.js"></script>
@@ -81,6 +108,7 @@
                     datasets: [],
                 },
                 options: {
+                    maintainAspectRatio: false,
                     scales: {
                         x: {
                             display: true,
@@ -107,8 +135,10 @@
         myChart = createChart(ctx, 'line', 'Time', 'Value');
         rewardChart = createChart(rewardCtx, 'line', 'Time', 'Reward Value');
 
+        let previousData = null;
+
         function updateVariables() {
-            // Fetch and update the data
+            // Update charts from log.json
             fetch('../../log/log.json')
                 .then(response => {
                     if (response.ok) {
@@ -119,57 +149,91 @@
                 .then(data => {
                     const latestData = data[data.length - 1];
 
-                    document.getElementById('contrast').textContent = latestData.contrast;
-                    document.getElementById('frequency').textContent = latestData.frequency;
-                    document.getElementById('resting_state').textContent = latestData.resting_state;
-                    document.getElementById('epoch').textContent = latestData.epoch;
+                    if (JSON.stringify(latestData) !== JSON.stringify(previousData)) {
+                        previousData = latestData;
 
-                    const hrf = JSON.parse(data[0].hrf);
-                    let fmriData = JSON.parse(latestData.fmri_data);
-                    let length_difference = Math.abs(hrf.length - fmriData.length);
+                        document.getElementById('contrast').textContent = latestData.contrast;
+                        document.getElementById('frequency').textContent = latestData.frequency;
+                        document.getElementById('resting_state').textContent = latestData.resting_state;
+                        document.getElementById('epoch').textContent = latestData.epoch;
 
-                    console.log(length_difference);
-                    if (length_difference > 0) {
-                        fmriData = Array(length_difference).fill(0).concat(fmriData);
+                        const hrf = JSON.parse(data[0].hrf);
+                        let fmriData = JSON.parse(latestData.fmri_data);
+                        let length_difference = Math.abs(hrf.length - fmriData.length);
+
+                        if (length_difference > 0) {
+                            fmriData = Array(length_difference).fill(0).concat(fmriData);
+                        }
+
+                        const reward = JSON.parse(latestData.reward);
+
+                        if (!Array.isArray(hrf) || !Array.isArray(fmriData) || !Array.isArray(reward)) {
+                            console.error("Data format is incorrect.");
+                            return;
+                        }
+
+                        myChart.data.labels = Array.from({ length: hrf.length }, (_, i) => i + 1);
+                        myChart.data.datasets = [
+                            {
+                                label: 'HRF',
+                                borderColor: 'red',
+                                data: hrf,
+                            },
+                            {
+                                label: 'fMRI Data',
+                                borderColor: 'blue',
+                                data: fmriData,
+                            },
+                        ];
+                        myChart.update();
+
+                        rewardChart.data.labels = Array.from({ length: reward.length + 2 }, (_, i) => i + 1);
+                        rewardChart.data.datasets = [
+                            {
+                                label: 'Reward',
+                                borderColor: 'green',
+                                data: reward,
+                            },
+                        ];
+                        rewardChart.update();
                     }
-
-                    const reward = JSON.parse(latestData.reward);
-
-                    if (!Array.isArray(hrf) || !Array.isArray(fmriData) || !Array.isArray(reward)) {
-                        console.error("Data format is incorrect.");
-                        return;
-                    }
-
-                    myChart.data.labels = Array.from({ length: hrf.length }, (_, i) => i + 1);
-                    myChart.data.datasets = [
-                        {
-                            label: 'HRF',
-                            borderColor: 'red',
-                            data: hrf,
-                        },
-                        {
-                            label: 'fMRI Data',
-                            borderColor: 'blue',
-                            data: fmriData,
-                        },
-                    ];
-                    myChart.update();
-
-                    rewardChart.data.labels = Array.from({ length: reward.length + 2 }, (_, i) => i + 1);
-                    rewardChart.data.datasets = [
-                        {
-                            label: 'Reward',
-                            borderColor: 'green',
-                            data: reward,
-                        },
-                    ];
-                    rewardChart.update();
                 })
-                .catch(error => console.error('Error:', error));
+                .catch(error => console.error('Error updating charts:', error));
+
+            // Update images
+            updateImage('../../log/reference.png', 'referenceImage');
+            updateImage('../../log/volume.png', 'volumeImage');
+            updateImage('../../log/q_table.png', 'qTableImage');
         }
 
-        setInterval(updateVariables, 5000)
-        // updateVariables();
+        function updateImage(imagePath, imageId) {
+            const img = document.getElementById(imageId);
+
+            fetch(imagePath, { cache: 'no-store' }) // Disable caching for images
+                .then(response => {
+                    if (response.ok) {
+                        return response.blob();
+                    }
+                    throw new Error('Network response was not ok.');
+                })
+                .then(blob => {
+                    const url = URL.createObjectURL(blob);
+                    img.src = url;
+                })
+                .catch(error => console.error('Error updating image:', error));
+        }
+
+        // Make the charts responsive
+        window.addEventListener('resize', () => {
+            myChart.resize();
+            rewardChart.resize();
+        });
+
+        // Initial call
+        updateVariables();
+
+        // Periodic update
+        setInterval(updateVariables, 1000); // Adjust the interval as needed
     </script>
 </body>
 </html>

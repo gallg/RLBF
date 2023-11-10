@@ -74,8 +74,7 @@ def run_acquisition(
     f_hash = ""
     f_size = -1
 
-    # ToDo: adjust render behavior to FPS lock;
-    # ToDo: log the Q-table in a proper way;
+    # ToDo: optimize render behavior;
 
     while True:
         current_files = os.listdir(scan_dir)
