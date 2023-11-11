@@ -1,3 +1,5 @@
+import numpy as np
+
 from real_time.utils import check_file_integrity, dcm_to_array, reset_log
 from real_time.preprocessing import save_preprocessed_data, load_preprocessed_data
 from real_time.preprocessing import get_image, select_preprocessing
@@ -74,7 +76,10 @@ def run_acquisition(
     f_hash = ""
     f_size = -1
 
-    # ToDo: optimize render behavior;
+    # ToDo: Optimize render behavior;
+    # ToDo: Fix hrf shifting;
+    # ToDo: Check Q-table rendering and values;
+    # ToDo: Check effects of smoothing on the Q-table;
 
     while True:
         current_files = os.listdir(scan_dir)
@@ -97,6 +102,10 @@ def run_acquisition(
             else:
                 current_volume = dcm_to_array(dcm_file)
 
+                # ToDo: Check the effects of intensity normalization;
+                # ToDo: Check effects of de-noising using CSF signal;
+                # current_volume = (current_volume / np.mean(current_volume)) * 1000
+
         # REAL-TIME PROCESSING;
         real_time_env.run_realtime(
             current_volume,
@@ -116,7 +125,7 @@ def run_acquisition(
 
 if __name__ == "__main__":
     output_dir = "/home/giuseppe/PNI/Bkup/Projects/rtfmri_dashboard/log"
-    scanner_dir = "/home/giuseppe/PNI/Bkup/Projects/rtfmri_dashboard/data_in/scandir"
+    scanner_dir = "/home/giuseppe/rtfmri/20231111.RLBF_Pilot_02.2023.11.11_11_49_24_STD_1.3.12.2.1107.5.99.3"
     reset_log(join(output_dir, "log.json"))
 
     env, path_to_first_vol, template, mask, affine, transformation = initialize_realtime(
