@@ -4,7 +4,7 @@ import numpy as np
 def generate_gaussian_kernel(size, sigma):
     kernel = np.fromfunction(lambda x, y: (1 / (2 * np.pi * sigma ** 2)) * np.exp(
         -((x - size // 2) ** 2 + (y - size // 2) ** 2) / (2 * sigma ** 2)), (size, size))
-    kernel /= np.sum(kernel)  # Normalize the kernel to ensure the sum is equal to 1;
+    kernel /= np.max(kernel)  # Normalize the kernel to ensure the sum is equal to 1;
     return kernel
 
 

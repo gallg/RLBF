@@ -217,6 +217,55 @@ def generate_hrf_regressor(time_length, duration, onset, amplitude, tr=1.0):
     return signal
 
 
+def block_hrf_regressor(baseline_size, block_size, delay, amplitude, tr=1.0):
+    # generate more timepoints, to make the function circular;
+    time_length = 2 * baseline_size + block_size
+    epoch_size = baseline_size + block_size
+    delay = int(delay * tr)
+
+    # experimental condition (onset, duration, amplitude);
+    frame_times = np.linspace(0, time_length * tr, time_length)
+    exp_condition = np.array((baseline_size, block_size, amplitude)).reshape(3, 1)
+
+    # compute convolved HRF function;
+    signal, _ = compute_regressor(
+        exp_condition,
+        "spm",
+        frame_times,
+        con_id="block"
+    )
+
+    # make function circular;
+    circular_samples = time_length - epoch_size
+
+    signal[:circular_samples] = signal[epoch_size:]
+    signal = signal[:epoch_size]
+
+    # adjust for BOLD delay;
+    signal = np.roll(signal, -delay)
+
+    return signal
+
+
+def get_mask_data(volume, mask, nuisance_mask=None):
+    noise = None
+    data = ants.utils.mask_image(volume, mask).numpy()
+
+    # get noise data if there is a nuisance mask;
+    if nuisance_mask is not None:
+        noise = ants.utils.mask_image(volume, mask).numpy()
+        noise = noise[np.nonzero(noise)]
+
+    return data[np.nonzero(data)], noise
+
+
+def denoise_timeseries(data, noise):
+    noise = sm.add_constant(noise)
+    model = sm.OLS(data, noise).fit()
+    data = model.resid
+    return data
+
+
 def run_glm(y, x):
     x = sm.add_constant(x)
     return sm.OLS(y, x).fit().params[-1]

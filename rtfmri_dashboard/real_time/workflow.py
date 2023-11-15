@@ -6,6 +6,7 @@ from rtfmri_dashboard.real_time.preprocessing import *
 from posixpath import join
 
 import rtfmri_dashboard.config as config
+import statsmodels.api as sm
 import ants.core.ants_image
 import numpy as np
 import threading
@@ -111,10 +112,10 @@ class RealTimeEnv:
 
     def initialize_hrf(self):
         self.epoch_duration = config.block_size + config.rest_size
-        self.hrf = generate_hrf_regressor(
-            time_length=self.epoch_duration + config.hrf_stimulus_onset,
-            duration=config.block_size,
-            onset=config.hrf_stimulus_onset,
+        self.hrf = block_hrf_regressor(
+            baseline_size=config.rest_size,
+            block_size=config.block_size,
+            delay=config.bold_delay,
             amplitude=config.hrf_amplitude,
             tr=config.repetition_time
         )
@@ -132,13 +133,6 @@ class RealTimeEnv:
         )
         self.environment.step()
 
-    def get_mask_data(self, volume, mask):
-        if not isinstance(mask, ants.core.ants_image.ANTsImage):
-            self.mask = ants.image_read(mask)
-
-        data = ants.utils.mask_image(volume, mask).numpy()
-        return data[np.nonzero(data)]
-
     def calculate_reward(self):
         mu = np.mean(self.temporary_data, axis=1)
         data_mean, data_std = np.mean(mu), np.std(mu)
@@ -148,20 +142,13 @@ class RealTimeEnv:
         self.real_time_data = standardized_data if self.real_time_data.shape[0] == 0 \
             else np.hstack([self.real_time_data, standardized_data])
 
-        # overall function duration (allows overlaps between blocks);
-        hrf_duration = self.epoch_duration + config.hrf_stimulus_onset
-
-        # handle block overlaps;
-        current_hrf = self.hrf.reshape(-1, 1) if self.current_epoch > 1 \
-            else self.hrf[config.hrf_stimulus_onset:].reshape(-1, 1)
-
         reward = run_glm(
-            self.real_time_data[-hrf_duration:].reshape(-1, 1),
-            current_hrf
+            self.real_time_data[-self.epoch_duration:].reshape(-1, 1),
+            self.hrf.reshape(-1, 1)
         )
-        return reward, hrf_duration
+        return reward, self.epoch_duration
 
-    def run_realtime(self, volume, template, mask, affine, transformation=None):
+    def run_realtime(self, volume, template, mask, affine, transformation=None, nuisance_mask=None):
 
         if config.render_only and volume is not None:
             # render only with high contrast & frequency;
@@ -195,7 +182,12 @@ class RealTimeEnv:
                 self.plot_volume.start()
 
             # acquire data;
-            data = self.get_mask_data(volume, mask)
+            data, noise = get_mask_data(volume, mask, nuisance_mask=nuisance_mask)
+            if nuisance_mask is not None:
+                data = denoise_timeseries(
+                    data.reshape(-1, 1),
+                    noise.reshape(-1, 1)
+                )
 
             self.temporary_data = data if self.temporary_data.shape[0] == 0 \
                 else np.vstack([self.temporary_data, pad_array(data, self.temporary_data)])

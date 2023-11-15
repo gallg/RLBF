@@ -1,5 +1,3 @@
-import numpy as np
-
 from real_time.utils import check_file_integrity, dcm_to_array, reset_log
 from real_time.preprocessing import save_preprocessed_data, load_preprocessed_data
 from real_time.preprocessing import get_image, select_preprocessing
@@ -11,7 +9,7 @@ import sys
 import os
 
 
-def initialize_realtime(environment, standard, roi_mask, scan_dir, out_dir):
+def initialize_realtime(environment, standard, roi_mask, nuisance_mask, scan_dir, out_dir):
     # save template and mask paths:
     path_to_template = standard
     path_to_mask = roi_mask
@@ -23,6 +21,9 @@ def initialize_realtime(environment, standard, roi_mask, scan_dir, out_dir):
     transform_matrix = join(out_dir, "fwdtransforms.mat")
     preprocessed_data = join(out_dir, "preprocessed.pkl")
     custom_mask = join(out_dir, "custom_mask.nii.gz")
+
+    if nuisance_mask is not None:
+        nuisance_mask, _ = get_image(nuisance_mask, affine=False, to_ants=True)
 
     prompt = input("run preprocessing? [yes/no] ")
     if prompt == "yes":
@@ -56,7 +57,7 @@ def initialize_realtime(environment, standard, roi_mask, scan_dir, out_dir):
             print("preprocessed data found, using old preprocessing data!")
             first_vol, standard, roi_mask, affine_matrix, transform_matrix = load_preprocessed_data(preprocessed_data)
 
-    return real_time_env, first_vol, standard, roi_mask, affine_matrix, transform_matrix
+    return real_time_env, first_vol, standard, roi_mask, nuisance_mask, affine_matrix, transform_matrix
 
 
 def run_acquisition(
@@ -65,6 +66,7 @@ def run_acquisition(
         real_time_env,
         standard,
         roi_mask,
+        noise_mask,
         affine_matrix,
         transformation_matrix
 ):
@@ -80,6 +82,7 @@ def run_acquisition(
     # ToDo: Fix hrf shifting;
     # ToDo: Check Q-table rendering and values;
     # ToDo: Check effects of smoothing on the Q-table;
+    # ToDo: Make sure reward corresponds to % signal change;
 
     while True:
         current_files = os.listdir(scan_dir)
@@ -112,7 +115,8 @@ def run_acquisition(
             standard,
             roi_mask,
             affine_matrix,
-            transformation_matrix
+            transformation_matrix,
+            nuisance_mask=noise_mask
         )
 
         if current_volume is not None:
@@ -125,13 +129,14 @@ def run_acquisition(
 
 if __name__ == "__main__":
     output_dir = "/home/giuseppe/PNI/Bkup/Projects/rtfmri_dashboard/log"
-    scanner_dir = "/home/giuseppe/rtfmri/20231111.RLBF_Pilot_02.2023.11.11_11_49_24_STD_1.3.12.2.1107.5.99.3"
+    scanner_dir = "/home/giuseppe/PNI/Bkup/Projects/rtfmri_dashboard/data_in/scandir"
     reset_log(join(output_dir, "log.json"))
 
-    env, path_to_first_vol, template, mask, affine, transformation = initialize_realtime(
+    env, path_to_first_vol, template, mask, nuisance_mask, affine, transformation = initialize_realtime(
         RealTimeEnv,
         "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/MNI152_T1_2mm_brain.nii.gz",
         "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/BA17_mask.nii.gz",
+        None,
         scanner_dir,
         output_dir
     )
@@ -143,6 +148,7 @@ if __name__ == "__main__":
             env,
             template,
             mask,
+            nuisance_mask,
             affine,
             transformation
         )
