@@ -66,7 +66,7 @@ def run_acquisition(
         real_time_env,
         standard,
         roi_mask,
-        noise_mask,
+        nuisance_mask,
         affine_matrix,
         transformation_matrix
 ):
@@ -79,9 +79,6 @@ def run_acquisition(
     f_size = -1
 
     # ToDo: Optimize render behavior;
-    # ToDo: Fix hrf shifting;
-    # ToDo: Check Q-table rendering and values;
-    # ToDo: Check effects of smoothing on the Q-table;
     # ToDo: Make sure reward corresponds to % signal change;
 
     while True:
@@ -105,7 +102,6 @@ def run_acquisition(
             else:
                 current_volume = dcm_to_array(dcm_file)
 
-                # ToDo: Check the effects of intensity normalization;
                 # ToDo: Check effects of de-noising using CSF signal;
                 # current_volume = (current_volume / np.mean(current_volume)) * 1000
 
@@ -116,7 +112,7 @@ def run_acquisition(
             roi_mask,
             affine_matrix,
             transformation_matrix,
-            nuisance_mask=noise_mask
+            nuisance_mask=nuisance_mask
         )
 
         if current_volume is not None:
@@ -132,11 +128,11 @@ if __name__ == "__main__":
     scanner_dir = "/home/giuseppe/PNI/Bkup/Projects/rtfmri_dashboard/data_in/scandir"
     reset_log(join(output_dir, "log.json"))
 
-    env, path_to_first_vol, template, mask, nuisance_mask, affine, transformation = initialize_realtime(
+    env, path_to_first_vol, template, mask, noise_mask, affine, transformation = initialize_realtime(
         RealTimeEnv,
         "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/MNI152_T1_2mm_brain.nii.gz",
         "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/BA17_mask.nii.gz",
-        None,
+        None,  # "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/CSF_mask_2mm.nii.gz",
         scanner_dir,
         output_dir
     )
@@ -148,7 +144,7 @@ if __name__ == "__main__":
             env,
             template,
             mask,
-            nuisance_mask,
+            noise_mask,
             affine,
             transformation
         )

@@ -75,3 +75,10 @@ def pad_array(array, reference):
     if padding_size > 0:
         array = np.pad(array, (0, padding_size))
     return array
+
+
+def inverse_roll(arr, overlap, size):
+    rolled_array = (
+        arr[-size - overlap:-overlap],
+        arr[-size:])[overlap == 0]
+    return rolled_array

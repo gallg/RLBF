@@ -1,16 +1,15 @@
 from rtfmri_dashboard.agents.utils import generate_gaussian_kernel, discretize_observation
 from rtfmri_dashboard.agents.soft_q_learner import SoftQAgent, create_bins
-from rtfmri_dashboard.real_time.utils import pad_array
+from rtfmri_dashboard.real_time.utils import pad_array, inverse_roll
 from rtfmri_dashboard.envs.checkerboard import CheckerBoardEnv
 from rtfmri_dashboard.real_time.preprocessing import *
 from posixpath import join
 
+import plotly.graph_objs as go
+import plotly.io as pio
 import rtfmri_dashboard.config as config
-import statsmodels.api as sm
-import ants.core.ants_image
 import numpy as np
 import threading
-import cv2
 import json
 
 
@@ -51,8 +50,7 @@ class RealTimeEnv:
 
         # initialize log;
         self.log_realtime(
-            [0, 0],
-            self.epoch_duration
+            [0, 0]
         )
 
         self.serializable_hrf = []
@@ -83,7 +81,6 @@ class RealTimeEnv:
             scale=config.q_table_noise_sigma,
             size=q_table_shape
         )
-        # self.log_q_table(q_table)
 
         # Generate RBF kernel;
         kernel = generate_gaussian_kernel(
@@ -112,10 +109,10 @@ class RealTimeEnv:
 
     def initialize_hrf(self):
         self.epoch_duration = config.block_size + config.rest_size
-        self.hrf = block_hrf_regressor(
-            baseline_size=config.rest_size,
-            block_size=config.block_size,
-            delay=config.bold_delay,
+        self.hrf = generate_hrf_regressor(
+            time_length=self.epoch_duration,
+            duration=config.block_size,
+            onset=config.hrf_stimulus_onset,
             amplitude=config.hrf_amplitude,
             tr=config.repetition_time
         )
@@ -133,6 +130,15 @@ class RealTimeEnv:
         )
         self.environment.step()
 
+    def roll_over_data(self):
+        overlap = (config.overlap_samples, 0)[self.current_epoch == 1]
+        current_data = inverse_roll(
+            self.real_time_data,
+            overlap,
+            self.epoch_duration
+        )
+        return current_data
+
     def calculate_reward(self):
         mu = np.mean(self.temporary_data, axis=1)
         data_mean, data_std = np.mean(mu), np.std(mu)
@@ -142,11 +148,12 @@ class RealTimeEnv:
         self.real_time_data = standardized_data if self.real_time_data.shape[0] == 0 \
             else np.hstack([self.real_time_data, standardized_data])
 
+        current_data = self.roll_over_data()
         reward = run_glm(
-            self.real_time_data[-self.epoch_duration:].reshape(-1, 1),
-            self.hrf.reshape(-1, 1)
+            current_data.reshape(-1, 1),
+            self.hrf
         )
-        return reward, self.epoch_duration
+        return reward
 
     def run_realtime(self, volume, template, mask, affine, transformation=None, nuisance_mask=None):
 
@@ -204,7 +211,7 @@ class RealTimeEnv:
                 next_state = discretize_observation(self.observation, self.bins)
 
                 # get reward;
-                reward, hrf_duration = self.calculate_reward()
+                reward = self.calculate_reward()
                 self.reward.append(reward)
 
                 # compute next q-value and update q-table;
@@ -222,7 +229,6 @@ class RealTimeEnv:
                     self.logger = threading.Thread(
                         target=self.log_realtime, args=(
                             last_observation,
-                            hrf_duration
                         )
                     )
                     self.logger.start()
@@ -230,9 +236,10 @@ class RealTimeEnv:
                 # reset important variable and start new epoch;
                 self.reset_realtime()
 
-    def log_realtime(self, action, hrf_duration):
+    def log_realtime(self, action):
+        current_data = self.roll_over_data()
         serializable_reward = json.dumps(self.reward)
-        serializable_data = json.dumps(self.real_time_data[-hrf_duration:].tolist())
+        serializable_data = json.dumps(current_data.tolist())
 
         log = {
             "contrast": action[0],
@@ -265,17 +272,13 @@ class RealTimeEnv:
 
     @staticmethod
     def log_q_table(q_table, output_path):
-        scale_factor = 80
-        data_scaled = (q_table * 255).astype(np.uint8)
-        colored_image = cv2.cvtColor(data_scaled, cv2.COLOR_GRAY2RGB)
-        upscaled_image = cv2.resize(
-            colored_image,
-            None,
-            fx=scale_factor,
-            fy=scale_factor,
-            interpolation=cv2.INTER_NEAREST
+        heatmap = go.Figure(data=go.Heatmap(z=q_table))
+        heatmap.update_layout(
+            width=600,
+            height=600,
+            yaxis=dict(scaleanchor="x", scaleratio=1),
         )
-        cv2.imwrite(output_path, upscaled_image)
+        pio.write_image(heatmap, output_path)
 
     def reset_realtime(self):
         self.resting_state = True

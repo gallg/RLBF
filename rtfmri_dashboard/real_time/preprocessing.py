@@ -9,6 +9,7 @@ import numpy as np
 import pickle
 import pprint
 import ants
+import time
 
 
 def plot_image(image, mask, reorient=False, filename=None):
@@ -16,6 +17,7 @@ def plot_image(image, mask, reorient=False, filename=None):
                               [mask],
                               filename=filename,
                               reorient=reorient)
+    # time.sleep(0.1)
 
 
 def draw_roi(volume, output_dir, radius=10):
@@ -214,36 +216,6 @@ def generate_hrf_regressor(time_length, duration, onset, amplitude, tr=1.0):
         frame_times,
         con_id="block"
     )
-    return signal
-
-
-def block_hrf_regressor(baseline_size, block_size, delay, amplitude, tr=1.0):
-    # generate more timepoints, to make the function circular;
-    time_length = 2 * baseline_size + block_size
-    epoch_size = baseline_size + block_size
-    delay = int(delay * tr)
-
-    # experimental condition (onset, duration, amplitude);
-    frame_times = np.linspace(0, time_length * tr, time_length)
-    exp_condition = np.array((baseline_size, block_size, amplitude)).reshape(3, 1)
-
-    # compute convolved HRF function;
-    signal, _ = compute_regressor(
-        exp_condition,
-        "spm",
-        frame_times,
-        con_id="block"
-    )
-
-    # make function circular;
-    circular_samples = time_length - epoch_size
-
-    signal[:circular_samples] = signal[epoch_size:]
-    signal = signal[:epoch_size]
-
-    # adjust for BOLD delay;
-    signal = np.roll(signal, -delay)
-
     return signal
 
 
