@@ -238,6 +238,30 @@ def standardize_signal(data, axis=1):
     return mu, mu_mean, mu_std
 
 
+def adaptive_noise_cancellation(noisy_signal, reference_noise, filter_order):
+    # Initialize weights for the adaptive filter
+    weights = np.zeros(filter_order)
+    cleaned_signal = np.zeros_like(noisy_signal)
+
+    # Apply ANC
+    for i in range(filter_order, len(noisy_signal)):
+        # Select a segment of the noisy signal for processing
+        segment = noisy_signal[i - filter_order: i]
+
+        # Predict the noise using the weights of the filter
+        predicted_noise = np.dot(weights, segment)
+
+        # Update the weights using the LMS algorithm
+        error = reference_noise[i] - predicted_noise
+        mu = 0.01  # Learning rate
+        weights += mu * error * segment
+
+        # Apply the estimated noise cancellation to the noisy signal
+        cleaned_signal[i] = noisy_signal[i] - predicted_noise
+
+    return cleaned_signal
+
+
 def run_glm(y, x, noise):
     regressors = x
     if len(noise) > 0:

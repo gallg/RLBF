@@ -141,19 +141,19 @@ class RealTimeEnv:
         return np.array(current_data)
 
     def calculate_reward(self):
-        mu = np.mean(self.temporary_data, axis=1)
+        self.real_time_data.extend(np.mean(self.temporary_data, axis=1))
 
         # save standardized nuisance regressor;
         if len(self.noise) > 0:
             noise_mu, noise_mean, noise_std = standardize_signal(self.noise, axis=1)
-            self.real_time_noise = (noise_mu - noise_mean) / noise_std
+            self.real_time_noise.extend((noise_mu - noise_mean) / noise_std)
 
         # roll over data arrays;
-        self.real_time_data = self.roll_over_data(mu)
+        current_data = self.roll_over_data(self.real_time_data)
         current_noise = self.roll_over_data(self.real_time_noise)
 
         reward = run_glm(
-            self.real_time_data.reshape(-1, 1),
+            current_data.reshape(-1, 1),
             self.hrf.reshape(-1, 1),
             current_noise.reshape(-1, 1)
         )
@@ -247,8 +247,11 @@ class RealTimeEnv:
             current_data = (mu - mu_mean) / mu_std
 
         # get correct data and noise samples;
-        current_data = self.roll_over_data(current_data)
         current_noise = self.roll_over_data(self.real_time_noise)
+        current_data = self.roll_over_data(current_data)
+
+        # get de-noised data for visualization purposes;
+        # current_data = adaptive_noise_cancellation(current_data, current_noise, 1)
 
         # serialize and log them in the json file;
         serializable_reward = json.dumps(self.reward)
@@ -287,6 +290,7 @@ class RealTimeEnv:
 
     def reset_realtime(self):
         self.temporary_data = []
+        self.noise = []
         self.resting_state = True
         self.volume_counter = 0
         self.collected_volumes = 0
@@ -295,4 +299,5 @@ class RealTimeEnv:
     def stop_realtime(self):
         # save acquired data and close environment;
         np.save(join(self.output_dir, "data.npy"), self.real_time_data)
+        np.save(join(self.output_dir, "noise.npy"), self.real_time_noise)
         self.environment.close()
