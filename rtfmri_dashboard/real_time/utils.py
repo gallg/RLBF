@@ -1,4 +1,6 @@
 from functools import partial
+import plotly.graph_objs as go
+import plotly.io as pio
 import numpy as np
 import pydicom
 import hashlib
@@ -70,9 +72,19 @@ def reset_log(log_path):
         json.dump(json_data, json_file)
 
 
+def log_q_table(q_table, output_path):
+    heatmap = go.Figure(data=go.Heatmap(z=q_table))
+    heatmap.update_layout(
+        width=600,
+        height=600,
+        yaxis=dict(scaleanchor="x", scaleratio=1),
+    )
+    pio.write_image(heatmap, output_path)
+
+
 def pad_array(array, reference):
-    padding_size = abs(np.max(reference.shape) - array.shape[0])
-    if padding_size > 0:
+    if len(reference) > 0:
+        padding_size = abs(len(reference[0]) - len(array))
         array = np.pad(array, (0, padding_size))
     return array
 

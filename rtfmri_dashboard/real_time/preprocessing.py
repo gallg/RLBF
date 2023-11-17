@@ -126,7 +126,7 @@ def select_preprocessing(
         msg = input("write '1' for co-registration, '2' for manual ROI definition: ")
 
         if msg == "1":
-            print("re-running the registration, please select the registration strategy:")
+            print("running the co-registration, please select the registration strategy:")
             prompt = input(
                 "choose 'default' (SynBold) or another one from the documentation:"
                 "https://antspyx.readthedocs.io/en/latest/registration.html "
@@ -222,22 +222,30 @@ def generate_hrf_regressor(time_length, duration, onset, amplitude, tr=1.0):
 def get_mask_data(volume, mask, nuisance_mask=None):
     noise = None
     data = ants.utils.mask_image(volume, mask).numpy()
+    data = data[np.nonzero(data)].tolist()
 
     # get noise data if there is a nuisance mask;
     if nuisance_mask is not None:
-        noise = ants.utils.mask_image(volume, mask).numpy()
-        noise = noise[np.nonzero(noise)]
+        noise = ants.utils.mask_image(volume, nuisance_mask).numpy()
+        noise = noise[np.nonzero(noise)].tolist()
 
-    return data[np.nonzero(data)], noise
-
-
-def denoise_timeseries(data, noise):
-    noise = sm.add_constant(noise)
-    model = sm.OLS(data, noise).fit()
-    data = model.resid
-    return data
+    return data, noise
 
 
-def run_glm(y, x):
-    x = sm.add_constant(x)
-    return sm.OLS(y, x).fit().params[-1]
+def standardize_signal(data, axis=1):
+    mu = np.mean(data, axis=axis)
+    mu_mean, mu_std = np.mean(mu), np.std(mu)
+    return mu, mu_mean, mu_std
+
+
+def run_glm(y, x, noise):
+    regressors = x
+    if len(noise) > 0:
+        regressors = np.hstack((x, noise))
+
+    regressors = sm.add_constant(regressors)
+    model = sm.OLS(y, regressors).fit()
+
+    # return noise robust % signal change;
+    alpha, beta = model.params[:2]
+    return (beta/alpha) * 100

@@ -1,12 +1,10 @@
 from rtfmri_dashboard.agents.utils import generate_gaussian_kernel, discretize_observation
 from rtfmri_dashboard.agents.soft_q_learner import SoftQAgent, create_bins
-from rtfmri_dashboard.real_time.utils import pad_array, inverse_roll
+from rtfmri_dashboard.real_time.utils import pad_array, inverse_roll, log_q_table
 from rtfmri_dashboard.envs.checkerboard import CheckerBoardEnv
 from rtfmri_dashboard.real_time.preprocessing import *
 from posixpath import join
 
-import plotly.graph_objs as go
-import plotly.io as pio
 import rtfmri_dashboard.config as config
 import numpy as np
 import threading
@@ -24,6 +22,7 @@ class RealTimeEnv:
         # settings for real-time processing; #
         self.mask = None
         self.volume_counter = 0
+        self.collected_volumes = 0
         self.block_has_finished = False
         self.resting_state = True
         self.epoch_duration = 0
@@ -32,8 +31,10 @@ class RealTimeEnv:
         self.output_dir = "../log"
 
         # store real-time data;
-        self.temporary_data = np.array([])
-        self.real_time_data = np.array([])
+        self.noise = []
+        self.temporary_data = []
+        self.real_time_data = []
+        self.real_time_noise = []
 
         # initialize environment;
         self.observation = None
@@ -102,7 +103,7 @@ class RealTimeEnv:
         )
 
         # log Q-table;
-        self.log_q_table(
+        log_q_table(
             self.agent.q_table,
             join(self.output_dir, "q_table.png")
         )
@@ -130,28 +131,31 @@ class RealTimeEnv:
         )
         self.environment.step()
 
-    def roll_over_data(self):
+    def roll_over_data(self, data):
         overlap = (config.overlap_samples, 0)[self.current_epoch == 1]
         current_data = inverse_roll(
-            self.real_time_data,
+            data,
             overlap,
             self.epoch_duration
         )
-        return current_data
+        return np.array(current_data)
 
     def calculate_reward(self):
         mu = np.mean(self.temporary_data, axis=1)
-        data_mean, data_std = np.mean(mu), np.std(mu)
 
-        # save standardized data;
-        standardized_data = (mu - data_mean) / data_std
-        self.real_time_data = standardized_data if self.real_time_data.shape[0] == 0 \
-            else np.hstack([self.real_time_data, standardized_data])
+        # save standardized nuisance regressor;
+        if len(self.noise) > 0:
+            noise_mu, noise_mean, noise_std = standardize_signal(self.noise, axis=1)
+            self.real_time_noise = (noise_mu - noise_mean) / noise_std
 
-        current_data = self.roll_over_data()
+        # roll over data arrays;
+        self.real_time_data = self.roll_over_data(mu)
+        current_noise = self.roll_over_data(self.real_time_noise)
+
         reward = run_glm(
-            current_data.reshape(-1, 1),
-            self.hrf
+            self.real_time_data.reshape(-1, 1),
+            self.hrf.reshape(-1, 1),
+            current_noise.reshape(-1, 1)
         )
         return reward
 
@@ -188,19 +192,17 @@ class RealTimeEnv:
                 )
                 self.plot_volume.start()
 
-            # acquire data;
-            data, noise = get_mask_data(volume, mask, nuisance_mask=nuisance_mask)
-            if nuisance_mask is not None:
-                data = denoise_timeseries(
-                    data.reshape(-1, 1),
-                    noise.reshape(-1, 1)
-                )
+            # acquire data, skip collecting the first resting block;
+            if self.current_epoch > 1 or self.volume_counter > config.rest_size:
+                self.collected_volumes += 1
+                data, noise = get_mask_data(volume, mask, nuisance_mask=nuisance_mask)
 
-            self.temporary_data = data if self.temporary_data.shape[0] == 0 \
-                else np.vstack([self.temporary_data, pad_array(data, self.temporary_data)])
+                self.temporary_data.append(pad_array(data, self.temporary_data))
+                if noise is not None:
+                    self.noise.append(noise)
 
             # if block has finished, make environment step;
-            if self.volume_counter == self.epoch_duration:
+            if self.collected_volumes == self.epoch_duration:
                 last_observation = self.observation
 
                 if not config.render_only:
@@ -237,9 +239,21 @@ class RealTimeEnv:
                 self.reset_realtime()
 
     def log_realtime(self, action):
-        current_data = self.roll_over_data()
+        current_data = self.real_time_data
+
+        # standardize signal for visualization purposes;
+        if len(self.real_time_data) > 0:
+            mu, mu_mean, mu_std = standardize_signal(self.temporary_data, axis=1)
+            current_data = (mu - mu_mean) / mu_std
+
+        # get correct data and noise samples;
+        current_data = self.roll_over_data(current_data)
+        current_noise = self.roll_over_data(self.real_time_noise)
+
+        # serialize and log them in the json file;
         serializable_reward = json.dumps(self.reward)
         serializable_data = json.dumps(current_data.tolist())
+        serializable_noise = json.dumps(current_noise.tolist())
 
         log = {
             "contrast": action[0],
@@ -248,7 +262,8 @@ class RealTimeEnv:
             "resting_state": self.resting_state,
             "epoch": self.current_epoch,
             "hrf": self.serializable_hrf,
-            "fmri_data": serializable_data
+            "fmri_data": serializable_data,
+            "noise": serializable_noise
         }
 
         try:
@@ -265,24 +280,16 @@ class RealTimeEnv:
             json.dump(json_data, json_file, indent=4)
 
         # log Q-table;
-        self.log_q_table(
+        log_q_table(
             self.agent.q_table,
             join(self.output_dir, "q_table.png")
         )
 
-    @staticmethod
-    def log_q_table(q_table, output_path):
-        heatmap = go.Figure(data=go.Heatmap(z=q_table))
-        heatmap.update_layout(
-            width=600,
-            height=600,
-            yaxis=dict(scaleanchor="x", scaleratio=1),
-        )
-        pio.write_image(heatmap, output_path)
-
     def reset_realtime(self):
+        self.temporary_data = []
         self.resting_state = True
         self.volume_counter = 0
+        self.collected_volumes = 0
         self.current_epoch += 1
 
     def stop_realtime(self):

@@ -159,6 +159,7 @@
 
                         const hrf = JSON.parse(data[0].hrf);
                         let fmriData = JSON.parse(latestData.fmri_data);
+                        let noise = JSON.parse(latestData.noise);
                         let length_difference = Math.abs(hrf.length - fmriData.length);
 
                         if (length_difference > 0) {
@@ -175,7 +176,7 @@
                         myChart.data.labels = Array.from({ length: hrf.length }, (_, i) => i + 1);
                         myChart.data.datasets = [
                             {
-                                label: 'HRF',
+                                label: 'Hypothesis Function',
                                 borderColor: 'red',
                                 data: hrf,
                             },
@@ -183,6 +184,11 @@
                                 label: 'fMRI Data',
                                 borderColor: 'blue',
                                 data: fmriData,
+                            },
+                            {
+                                label: 'Noise',
+                                borderColor: 'Purple',
+                                data: noise,
                             },
                         ];
                         myChart.update();

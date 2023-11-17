@@ -79,7 +79,6 @@ def run_acquisition(
     f_size = -1
 
     # ToDo: Optimize render behavior;
-    # ToDo: Make sure reward corresponds to % signal change;
 
     while True:
         current_files = os.listdir(scan_dir)
@@ -101,9 +100,6 @@ def run_acquisition(
                 time.sleep(0.010)
             else:
                 current_volume = dcm_to_array(dcm_file)
-
-                # ToDo: Check effects of de-noising using CSF signal;
-                # current_volume = (current_volume / np.mean(current_volume)) * 1000
 
         # REAL-TIME PROCESSING;
         real_time_env.run_realtime(
@@ -132,7 +128,7 @@ if __name__ == "__main__":
         RealTimeEnv,
         "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/MNI152_T1_2mm_brain.nii.gz",
         "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/BA17_mask.nii.gz",
-        None,  # "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/CSF_mask_2mm.nii.gz",
+        "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/CSF_mask_2mm.nii.gz",
         scanner_dir,
         output_dir
     )
