@@ -9,7 +9,6 @@ import numpy as np
 import pickle
 import pprint
 import ants
-import time
 
 
 def plot_image(image, mask, reorient=False, filename=None):
@@ -17,7 +16,6 @@ def plot_image(image, mask, reorient=False, filename=None):
                               [mask],
                               filename=filename,
                               reorient=reorient)
-    # time.sleep(0.1)
 
 
 def draw_roi(volume, output_dir, radius=10):
@@ -236,30 +234,6 @@ def standardize_signal(data, axis=1):
     mu = np.mean(data, axis=axis)
     mu_mean, mu_std = np.mean(mu), np.std(mu)
     return mu, mu_mean, mu_std
-
-
-def adaptive_noise_cancellation(noisy_signal, reference_noise, filter_order):
-    # Initialize weights for the adaptive filter
-    weights = np.zeros(filter_order)
-    cleaned_signal = np.zeros_like(noisy_signal)
-
-    # Apply ANC
-    for i in range(filter_order, len(noisy_signal)):
-        # Select a segment of the noisy signal for processing
-        segment = noisy_signal[i - filter_order: i]
-
-        # Predict the noise using the weights of the filter
-        predicted_noise = np.dot(weights, segment)
-
-        # Update the weights using the LMS algorithm
-        error = reference_noise[i] - predicted_noise
-        mu = 0.01  # Learning rate
-        weights += mu * error * segment
-
-        # Apply the estimated noise cancellation to the noisy signal
-        cleaned_signal[i] = noisy_signal[i] - predicted_noise
-
-    return cleaned_signal
 
 
 def run_glm(y, x, noise):

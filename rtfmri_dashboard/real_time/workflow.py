@@ -13,11 +13,8 @@ import json
 
 class RealTimeEnv:
     def __init__(self):
-        # load environment;
-        self.environment = CheckerBoardEnv(
-            board="../rtfmri_dashboard/envs/assets/checkerboard.png",
-            cross="../rtfmri_dashboard/envs/assets/cross.png"
-        )
+        # load an instance of the environment for the agent;
+        self.environment = CheckerBoardEnv()
 
         # settings for real-time processing; #
         self.mask = None
@@ -102,6 +99,14 @@ class RealTimeEnv:
             **parameters
         )
 
+        # save initial state;
+        state = np.array([
+            self.resting_state,
+            self.observation[0],
+            self.observation[1]
+        ])
+        state.tofile(join(self.output_dir, "state.bin"))
+
         # log Q-table;
         log_q_table(
             self.agent.q_table,
@@ -121,15 +126,16 @@ class RealTimeEnv:
 
     def update_rendering(self):
         # render checkerboard if resting state finished;
-        if self.volume_counter > config.rest_size:
-            self.resting_state = False
+        self.resting_state = (True, False)[1 <= self.collected_volumes <= config.block_size]
 
-        self.environment.set(
+        # save current state for rendering;
+        state = np.array([
             self.resting_state,
             self.observation[0],
             self.observation[1]
-        )
-        self.environment.step()
+        ])
+        # np.save(join(self.output_dir, "state.npy"), state)
+        state.tofile(join(self.output_dir, "state.bin"))
 
     def roll_over_data(self, data):
         overlap = (config.overlap_samples, 0)[self.current_epoch == 1]
@@ -160,12 +166,11 @@ class RealTimeEnv:
         return reward
 
     def run_realtime(self, volume, template, mask, affine, transformation=None, nuisance_mask=None):
-
+        # render only with high contrast & frequency;
         if config.render_only and volume is not None:
-            # render only with high contrast & frequency;
             self.observation = np.array([1.0, 0.9])
 
-        # render & update the environment;
+        # update the environment rendering;
         self.update_rendering()
 
         if volume is not None:
@@ -250,8 +255,7 @@ class RealTimeEnv:
         current_noise = self.roll_over_data(self.real_time_noise)
         current_data = self.roll_over_data(current_data)
 
-        # get de-noised data for visualization purposes;
-        # current_data = adaptive_noise_cancellation(current_data, current_noise, 1)
+        # ToDo: choose a good de-noising algorithm for data visualization;
 
         # serialize and log them in the json file;
         serializable_reward = json.dumps(self.reward)
@@ -292,12 +296,11 @@ class RealTimeEnv:
         self.temporary_data = []
         self.noise = []
         self.resting_state = True
-        self.volume_counter = 0
         self.collected_volumes = 0
+        self.volume_counter = 0
         self.current_epoch += 1
 
     def stop_realtime(self):
         # save acquired data and close environment;
         np.save(join(self.output_dir, "data.npy"), self.real_time_data)
         np.save(join(self.output_dir, "noise.npy"), self.real_time_noise)
-        self.environment.close()

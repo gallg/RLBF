@@ -3,7 +3,10 @@ from real_time.preprocessing import save_preprocessed_data, load_preprocessed_da
 from real_time.preprocessing import get_image, select_preprocessing
 from real_time.utils import scan_dicom_folder
 from real_time.workflow import RealTimeEnv
+from envs.utils import render_env
 from posixpath import join
+
+import threading
 import time
 import sys
 import os
@@ -78,8 +81,6 @@ def run_acquisition(
     f_hash = ""
     f_size = -1
 
-    # ToDo: Optimize render behavior;
-
     while True:
         current_files = os.listdir(scan_dir)
 
@@ -132,6 +133,15 @@ if __name__ == "__main__":
         scanner_dir,
         output_dir
     )
+
+    # ToDo: add clean way to close rendering thread;
+    # load an instance of the environment for rendering;
+    render = threading.Thread(
+        target=render_env, args=(
+            output_dir,
+        )
+    )
+    render.start()
 
     try:
         run_acquisition(
