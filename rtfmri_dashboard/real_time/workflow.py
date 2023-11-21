@@ -69,6 +69,7 @@ class RealTimeEnv:
         # generate bins;
         self.bins = create_bins(config.num_bins_per_observation)
 
+        # ToDo: start Q-table at 0.5;
         # Create q_table;
         q_table_shape = (
             config.num_bins_per_observation,
@@ -256,6 +257,8 @@ class RealTimeEnv:
         current_data = self.roll_over_data(current_data)
 
         # ToDo: choose a good de-noising algorithm for data visualization;
+        # ToDo: add dots for last action on the Q-table;
+        # ToDo: add convergence criterion;
 
         # serialize and log them in the json file;
         serializable_reward = json.dumps(self.reward)
