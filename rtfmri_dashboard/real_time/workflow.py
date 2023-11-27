@@ -1,6 +1,7 @@
+from rtfmri_dashboard.real_time.utils import pad_array, inverse_roll, log_q_table, log_convergence
 from rtfmri_dashboard.agents.utils import generate_gaussian_kernel, discretize_observation
+from rtfmri_dashboard.agents.utils import convergence
 from rtfmri_dashboard.agents.soft_q_learner import SoftQAgent, create_bins
-from rtfmri_dashboard.real_time.utils import pad_array, inverse_roll, log_q_table
 from rtfmri_dashboard.envs.checkerboard import CheckerBoardEnv
 from rtfmri_dashboard.real_time.preprocessing import *
 from posixpath import join
@@ -34,6 +35,9 @@ class RealTimeEnv:
         self.real_time_noise = []
 
         # initialize environment;
+        self.convergence_window_size = 0
+        self.convergence = []
+        self.action_log = []
         self.observation = None
         self.current_epoch = 1
         self.previous_state = None
@@ -48,7 +52,8 @@ class RealTimeEnv:
 
         # initialize log;
         self.log_realtime(
-            [0, 0]
+            [0, 0],
+            None
         )
 
         self.serializable_hrf = []
@@ -69,17 +74,14 @@ class RealTimeEnv:
         # generate bins;
         self.bins = create_bins(config.num_bins_per_observation)
 
-        # ToDo: start Q-table at 0.5;
         # Create q_table;
         q_table_shape = (
             config.num_bins_per_observation,
             config.num_bins_per_observation
         )
-        q_table = np.random.normal(
-            config.q_table_noise_mean,
-            scale=config.q_table_noise_sigma,
-            size=q_table_shape
-        )
+
+        # Start Q-table at 0.5 to allow agent punishment;
+        q_table = np.ones(q_table_shape) * 0.5
 
         # Generate RBF kernel;
         kernel = generate_gaussian_kernel(
@@ -108,9 +110,15 @@ class RealTimeEnv:
         ])
         state.tofile(join(self.output_dir, "state.bin"))
 
+        # convergence parameters;
+        self.convergence_window_size = config.conv_window_size
+
         # log Q-table;
         log_q_table(
             self.agent.q_table,
+            None,
+            None,
+            None,
             join(self.output_dir, "q_table.png")
         )
 
@@ -148,7 +156,7 @@ class RealTimeEnv:
         return np.array(current_data)
 
     def calculate_reward(self):
-        self.real_time_data.extend(np.mean(self.temporary_data, axis=1))
+        self.real_time_data.extend(np.median(self.temporary_data, axis=1))
 
         # save standardized nuisance regressor;
         if len(self.noise) > 0:
@@ -211,19 +219,30 @@ class RealTimeEnv:
             if self.collected_volumes == self.epoch_duration:
                 last_observation = self.observation
 
-                if not config.render_only:
-                    self.observation = self.agent.soft_q_action_selection()
+                if self.current_epoch > self.convergence_window_size:
+                    self.convergence.append(
+                        convergence(
+                            self.action_log,
+                            self.convergence_window_size
+                        )
+                    )
 
                 # get old q-value;
                 old_q_value = self.agent.q_table[self.previous_state]
-                next_state = discretize_observation(self.observation, self.bins)
+                # next_state = discretize_observation(self.observation, self.bins)
 
                 # get reward;
                 reward = self.calculate_reward()
                 self.reward.append(reward)
 
                 # compute next q-value and update q-table;
-                self.agent.q_table = self.agent.update_q_table(reward, next_state, old_q_value)
+                self.agent.q_table = self.agent.update_q_table(reward, self.previous_state, old_q_value)
+
+                if not config.render_only:
+                    self.observation = self.agent.soft_q_action_selection()
+                    self.action_log.append(self.observation)
+
+                next_state = discretize_observation(self.observation, self.bins)
                 self.previous_state = next_state
 
                 # decide whether to reduce temperature or not;
@@ -237,6 +256,7 @@ class RealTimeEnv:
                     self.logger = threading.Thread(
                         target=self.log_realtime, args=(
                             last_observation,
+                            self.observation
                         )
                     )
                     self.logger.start()
@@ -244,7 +264,7 @@ class RealTimeEnv:
                 # reset important variable and start new epoch;
                 self.reset_realtime()
 
-    def log_realtime(self, action):
+    def log_realtime(self, last_action, current_action):
         current_data = self.real_time_data
 
         # standardize signal for visualization purposes;
@@ -257,23 +277,28 @@ class RealTimeEnv:
         current_data = self.roll_over_data(current_data)
 
         # ToDo: choose a good de-noising algorithm for data visualization;
-        # ToDo: add dots for last action on the Q-table;
-        # ToDo: add convergence criterion;
+        # ToDo: check action discretization and its visualization;
+        # ToDo: add Q-table initialization as a parameter in the config file;
+        # ToDo: check convergence calculation and output, add it to the dashboard;
+        # ToDo: integrate new changes, with the dashboard and the program;
+        # ToDo: add a motion correction algorithm compatible with RT processing;
 
         # serialize and log them in the json file;
         serializable_reward = json.dumps(self.reward)
         serializable_data = json.dumps(current_data.tolist())
         serializable_noise = json.dumps(current_noise.tolist())
+        serializable_table = json.dumps(self.agent.q_table.tolist())
 
         log = {
-            "contrast": action[0],
-            "frequency": action[1],
+            "contrast": last_action[0],
+            "frequency": last_action[1],
             "reward": serializable_reward,
             "resting_state": self.resting_state,
             "epoch": self.current_epoch,
             "hrf": self.serializable_hrf,
             "fmri_data": serializable_data,
-            "noise": serializable_noise
+            "noise": serializable_noise,
+            "q_table": serializable_table
         }
 
         try:
@@ -292,7 +317,15 @@ class RealTimeEnv:
         # log Q-table;
         log_q_table(
             self.agent.q_table,
+            last_action,
+            current_action,
+            config.num_bins_per_observation,
             join(self.output_dir, "q_table.png")
+        )
+
+        log_convergence(
+            self.convergence,
+            self.output_dir
         )
 
     def reset_realtime(self):

@@ -83,7 +83,8 @@ class CheckerBoardEnv:
             self.screen.blit(base_checkerboard, checkerboard_center)
             self.screen.blit(self.cross, cross_center)
 
-            pygame.display.flip()
+            # ToDo: make checkerboard rect not hardcoded;
+            pygame.display.update(pygame.Rect(0, 0, 860, 1000))
             pygame.time.Clock().tick(config.fps)
 
     def event_handler(self):

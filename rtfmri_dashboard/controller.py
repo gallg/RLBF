@@ -98,7 +98,7 @@ def run_acquisition(
             if (current_f_hash != f_hash) or (current_f_size != f_size):
                 f_hash = current_f_hash
                 f_size = current_f_size
-                time.sleep(0.010)
+                time.sleep(0.020)
             else:
                 current_volume = dcm_to_array(dcm_file)
 
@@ -122,18 +122,19 @@ def run_acquisition(
 
 if __name__ == "__main__":
     output_dir = "/home/giuseppe/PNI/Bkup/Projects/rtfmri_dashboard/log"
-    scanner_dir = "/home/giuseppe/PNI/Bkup/Projects/rtfmri_dashboard/data_in/scandir"
+    scanner_dir = "/home/giuseppe/rtfmri/20231125.RLBF_Pilot_05.2023.11.25_13_04_09_STD_1.3.12.2.1107.5.99.3"
     reset_log(join(output_dir, "log.json"))
 
     env, path_to_first_vol, template, mask, noise_mask, affine, transformation = initialize_realtime(
         RealTimeEnv,
         "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/MNI152_T1_2mm_brain.nii.gz",
         "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/BA17_mask.nii.gz",
-        "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/CSF_mask_2mm.nii.gz",
+        None,  # "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/CSF_mask_2mm.nii.gz",
         scanner_dir,
         output_dir
     )
 
+    # ToDo: further optimize rendering;
     # ToDo: add clean way to close rendering thread;
     # load an instance of the environment for rendering;
     render = threading.Thread(

@@ -33,3 +33,16 @@ def discretize_observation(observations, bins):
         binned_observations.append(discrete_observation)
 
     return tuple(binned_observations)
+
+
+def euclidean_2d(x, v):
+    x = np.array(x).reshape(-1, 1)
+    v = np.array(v).reshape(-1, 1)
+    distance = np.linalg.norm(x - v, axis=1)
+    return np.mean(distance)
+
+
+def convergence(maxima, current_window_size):
+    previous_window = maxima[-current_window_size:-1]
+    current_window = maxima[-(current_window_size - 1):]
+    return euclidean_2d(previous_window, current_window)

@@ -1,4 +1,5 @@
 from functools import partial
+from posixpath import join
 import plotly.graph_objs as go
 import plotly.io as pio
 import numpy as np
@@ -72,14 +73,11 @@ def reset_log(log_path):
         json.dump(json_data, json_file)
 
 
-def log_q_table(q_table, output_path):
-    heatmap = go.Figure(data=go.Heatmap(z=q_table))
-    heatmap.update_layout(
-        width=600,
-        height=600,
-        yaxis=dict(scaleanchor="x", scaleratio=1),
-    )
-    pio.write_image(heatmap, output_path)
+def inverse_roll(arr, overlap, size):
+    rolled_array = (
+        arr[-size - overlap:-overlap],
+        arr[-size:])[overlap == 0]
+    return rolled_array
 
 
 def pad_array(array, reference):
@@ -89,8 +87,35 @@ def pad_array(array, reference):
     return array
 
 
-def inverse_roll(arr, overlap, size):
-    rolled_array = (
-        arr[-size - overlap:-overlap],
-        arr[-size:])[overlap == 0]
-    return rolled_array
+def log_q_table(q_table, last_action, action, n_bins, output_path):
+    heatmap = go.Figure(data=go.Heatmap(z=q_table))
+    heatmap.update_layout(
+        width=600,
+        height=600,
+        yaxis=dict(scaleanchor="x", scaleratio=1),
+    )
+
+    # plot location of last action
+    if action is not None:
+        heatmap.add_trace(go.Scatter(
+            x=[last_action[1] * n_bins,  action[1] * n_bins],
+            y=[last_action[0] * n_bins,  action[0] * n_bins],
+            mode='markers',
+            marker=dict(color=("green", "red"), size=20),
+            showlegend=False,
+        ))
+    pio.write_image(heatmap, output_path)
+
+
+def log_convergence(convergence, output_dir):
+    fig = go.Figure()
+    fig.update_layout(
+        width=600,
+        height=600,
+        yaxis=dict(scaleratio=1, range=[0, 1]),
+    )
+
+    # create convergence plot;
+    fig.add_trace(
+        go.Scatter(x=list(range(len(convergence))), y=convergence, mode='lines', name='Convergence'))
+    fig.write_image(join(output_dir, "convergence.png"), format='png')
