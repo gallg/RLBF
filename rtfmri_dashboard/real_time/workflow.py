@@ -27,6 +27,7 @@ class RealTimeEnv:
         self.hrf = None
         self.serializable_hrf = None
         self.output_dir = "../log"
+        self.reference = "/tmp/reference.nii.gz"
 
         # store real-time data;
         self.noise = []
@@ -186,12 +187,19 @@ class RealTimeEnv:
             self.volume_counter += 1
             print("Volume: ", self.volume_counter)
 
-            # preprocess volume;
-            volume, transformation = run_preprocessing(
+            # align volume;
+            aligned, _ = run_preprocessing(
                 volume,
                 template,
                 affine,
                 transformation
+            )
+
+            # motion correction;
+            volume = motion_correction(
+                aligned,
+                self.reference,
+                to_ants=True
             )
 
             # plot new, preprocessed, volume;

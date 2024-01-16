@@ -2,13 +2,16 @@ from rtfmri_dashboard.real_time.utils import dcm_to_array
 from nilearn.glm.first_level import compute_regressor
 from shutil import copyfile
 from posixpath import join
+from tempfile import mkstemp
 
 import statsmodels.api as sm
 import nibabel as nib
 import numpy as np
+import subprocess
 import pickle
 import pprint
 import ants
+import os
 
 
 def plot_image(image, mask, reorient=False, filename=None):
@@ -73,12 +76,12 @@ def reorient_volume(volume, affine, to_ants=False):
     return reoriented
 
 
-def ants_registration(moving, fixed, transform_type="SyNBold"):
+def ants_registration(moving, fixed, transform_type="SyNBold", reg_iterations=(1000, 2000)):
     transformation = ants.registration(
         fixed,
         moving,
         transform_type=transform_type,
-        reg_iterations=(1000, 2000),
+        reg_iterations=reg_iterations,
         verbose=False
     )
     return transformation["fwdtransforms"][1]
@@ -93,6 +96,42 @@ def ants_transform(moving, fixed, transformation):
     return registered_img
 
 
+# def motion_correction(volume, template, transform_type="SynBold"):
+#     reg = ants_registration(
+#         volume,
+#         template,
+#         reg_iterations=(0, ),  # min iterations;
+#         transform_type=transform_type
+#     )
+#     volume = ants_transform(volume, template, reg)
+#     return volume
+
+
+def mcflirt(infile, reference, outfile):
+    cmd = ["mcflirt", "-in", infile, "-reffile", reference, "-out", outfile]
+    subprocess.run(cmd)
+
+
+def motion_correction(volume, reference, to_ants=False):
+    fin, infile = mkstemp(suffix=".nii.gz")
+    fout, outfile = mkstemp(suffix=".nii.gz")
+    volume.to_filename(infile)
+    mcflirt(infile, reference, outfile)
+    os.close(fin)
+    os.close(fout)
+
+    corrected_volume = nib.load(outfile)
+
+    if to_ants:
+        corrected_volume = ants.from_nibabel(corrected_volume)
+
+    # Clean temporary data;
+    os.remove(infile)
+    os.remove(outfile)
+
+    return corrected_volume
+
+
 def run_preprocessing(volume, template, affine, transformation=None, transform_type="SyNBold", preprocessing=False):
     volume = reorient_volume(volume, affine, to_ants=True)
 
@@ -104,6 +143,7 @@ def run_preprocessing(volume, template, affine, transformation=None, transform_t
             transform_type=transform_type
         )
 
+    # if this is not the first volume, do alignment;
     if transformation is not None:
         volume = ants_transform(volume, template, transformation)
 
@@ -160,6 +200,8 @@ def select_preprocessing(
         # decide whether to end preprocessing or not;
         prompt = input("end preprocessing? [yes/no]")
         if prompt == "yes":
+            # save a copy of the preprocessed reference volume;
+            volume.to_filename("/tmp/reference.nii.gz")
             break
         elif prompt == "no":
             continue

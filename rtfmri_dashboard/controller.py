@@ -122,7 +122,7 @@ def run_acquisition(
 
 if __name__ == "__main__":
     output_dir = "/home/giuseppe/PNI/Bkup/Projects/rtfmri_dashboard/log"
-    scanner_dir = "/home/giuseppe/rtfmri/20231125.RLBF_Pilot_05.2023.11.25_13_04_09_STD_1.3.12.2.1107.5.99.3"
+    scanner_dir = "/home/giuseppe/PNI/Bkup/Projects/rtfmri_dashboard/data_in/scandir"
     reset_log(join(output_dir, "log.json"))
 
     env, path_to_first_vol, template, mask, noise_mask, affine, transformation = initialize_realtime(
