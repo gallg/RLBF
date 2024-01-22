@@ -41,6 +41,6 @@ decay_rate = settings.getfloat('Q_LEARNING', 'decay_rate')
 # ------------------------------------------------
 
 # environment settings;
-board_size = settings.getint('ENVIRONMENT', 'board_size')
-cross_size = settings.getint('ENVIRONMENT', 'cross_size')
+board_scale = settings.getint('ENVIRONMENT', 'board_scale')
+cross_scale = settings.getint('ENVIRONMENT', 'cross_scale')
 fps = settings.getint('ENVIRONMENT', 'fps')

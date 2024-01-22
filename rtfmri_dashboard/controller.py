@@ -129,7 +129,7 @@ if __name__ == "__main__":
     env, path_to_first_vol, template, mask, noise_mask, affine, transformation = initialize_realtime(
         RealTimeEnv,
         "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/MNI152_T1_2mm_brain.nii.gz",
-        "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/BA17_mask.nii.gz",
+        "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/BA17_mask_fix.nii.gz",
         None,  # "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/CSF_mask_2mm.nii.gz",
         scanner_dir,
         output_dir

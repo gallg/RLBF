@@ -18,7 +18,8 @@ def plot_image(image, mask, reorient=False, filename=None):
     ants.viz.plot_ortho_stack([image],
                               [mask],
                               filename=filename,
-                              reorient=reorient)
+                              reorient=reorient,
+                              dpi=72)
 
 
 def draw_roi(volume, output_dir, radius=10):

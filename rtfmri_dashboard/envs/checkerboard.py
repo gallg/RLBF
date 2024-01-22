@@ -1,4 +1,4 @@
-from pathlib import Path
+from rtfmri_dashboard import config
 from posixpath import join
 import numpy as np
 import pyray as rl
@@ -9,8 +9,8 @@ class CheckerBoardEnv:
     def __init__(self, board=None, cross=None, render_mode=None):
         self.screen_width = 1280
         self.screen_height = 720
-        self.board_scale = 0.6
-        self.cross_scale = 0.2
+        self.board_scale = config.board_scale
+        self.cross_scale = config.cross_scale
         self.center = (self.screen_width // 2, self.screen_height // 2)
 
         self.contrast = 0
@@ -18,7 +18,7 @@ class CheckerBoardEnv:
         self.flickering_timer = 0
         self.resting_state = True
         self.render_mode = render_mode
-        self.fps = 30
+        self.fps = config.fps
 
         if self.render_mode == "human":
             rl.init_window(self.screen_width, self.screen_height, "Checkerboard Environment")
@@ -42,12 +42,12 @@ class CheckerBoardEnv:
             state = np.fromfile(join(output_dir, "state.bin"))
             if not state.shape[0] == 0:
                 (self.resting_state,
-                self.contrast,
-                self.frequency) = state
+                    self.contrast,
+                    self.frequency) = state
         else:
             (self.resting_state,
-            self.contrast,
-            self.frequency) = (True, 0, 0)
+                self.contrast,
+                self.frequency) = (True, 0, 0)
 
     def render(self):
         if self.render_mode != "human":

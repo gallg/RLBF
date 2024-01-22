@@ -17,7 +17,7 @@ class RealTimeEnv:
         # load an instance of the environment for the agent;
         self.environment = CheckerBoardEnv()
 
-        # settings for real-time processing; #
+        # settings for real-time processing;
         self.mask = None
         self.volume_counter = 0
         self.collected_volumes = 0
@@ -237,7 +237,6 @@ class RealTimeEnv:
 
                 # get old q-value;
                 old_q_value = self.agent.q_table[self.previous_state]
-                # next_state = discretize_observation(self.observation, self.bins)
 
                 # get reward;
                 reward = self.calculate_reward()
@@ -285,6 +284,7 @@ class RealTimeEnv:
         current_data = self.roll_over_data(current_data)
 
         # ToDo: check convergence calculation and output, add it to the dashboard;
+        # ToDo: add rotations and translation from motion correction to the dashboard;
         # ToDo: integrate new changes, with the dashboard and the program;
 
         # serialize and log them in the json file;
