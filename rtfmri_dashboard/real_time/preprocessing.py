@@ -96,17 +96,6 @@ def ants_transform(moving, fixed, transformation):
     return registered_img
 
 
-# def motion_correction(volume, template, transform_type="SynBold"):
-#     reg = ants_registration(
-#         volume,
-#         template,
-#         reg_iterations=(0, ),  # min iterations;
-#         transform_type=transform_type
-#     )
-#     volume = ants_transform(volume, template, reg)
-#     return volume
-
-
 def mcflirt(infile, reference, outfile):
     cmd = ["mcflirt", "-in", infile, "-reffile", reference, "-out", outfile]
     subprocess.run(cmd)

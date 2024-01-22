@@ -81,8 +81,8 @@ class RealTimeEnv:
             config.num_bins_per_observation
         )
 
-        # Start Q-table at 0.5 to allow agent punishment;
-        q_table = np.ones(q_table_shape) * 0.5
+        # Initialize Q-table to config value to allow agent punishment;
+        q_table = np.ones(q_table_shape) * config.q_table_init
 
         # Generate RBF kernel;
         kernel = generate_gaussian_kernel(
@@ -284,12 +284,8 @@ class RealTimeEnv:
         current_noise = self.roll_over_data(self.real_time_noise)
         current_data = self.roll_over_data(current_data)
 
-        # ToDo: choose a good de-noising algorithm for data visualization;
-        # ToDo: check action discretization and its visualization;
-        # ToDo: add Q-table initialization as a parameter in the config file;
         # ToDo: check convergence calculation and output, add it to the dashboard;
         # ToDo: integrate new changes, with the dashboard and the program;
-        # ToDo: add a motion correction algorithm compatible with RT processing;
 
         # serialize and log them in the json file;
         serializable_reward = json.dumps(self.reward)

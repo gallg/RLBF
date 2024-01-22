@@ -3,10 +3,9 @@ from real_time.preprocessing import save_preprocessed_data, load_preprocessed_da
 from real_time.preprocessing import get_image, select_preprocessing
 from real_time.utils import scan_dicom_folder
 from real_time.workflow import RealTimeEnv
-from envs.utils import render_env
 from posixpath import join
 
-import threading
+import subprocess
 import time
 import sys
 import os
@@ -56,6 +55,8 @@ def initialize_realtime(environment, standard, roi_mask, nuisance_mask, scan_dir
     else:
         if not os.path.isfile(preprocessed_data):
             raise Exception("No preprocessed data, please run preprocessing")
+        elif not os.path.isfile("/tmp/reference.nii.gz"):
+            raise Exception("No reference volume found, please run preprocessing")
         else:
             print("preprocessed data found, using old preprocessing data!")
             first_vol, standard, roi_mask, affine_matrix, transform_matrix = load_preprocessed_data(preprocessed_data)
@@ -134,15 +135,9 @@ if __name__ == "__main__":
         output_dir
     )
 
-    # ToDo: further optimize rendering;
-    # ToDo: add clean way to close rendering thread;
-    # load an instance of the environment for rendering;
-    render = threading.Thread(
-        target=render_env, args=(
-            output_dir,
-        )
-    )
-    render.start()
+    # open rendering in another python process;
+    cmd = ["python", "./envs/render.py"]
+    process = subprocess.Popen(cmd)
 
     try:
         run_acquisition(
@@ -158,6 +153,7 @@ if __name__ == "__main__":
 
     # save acquired data and decide whether to restart or not;
     except KeyboardInterrupt:
+        process.terminate()
         env.stop_realtime()
         msg = input("Restart? [y/n]: ")
         if msg == "y":

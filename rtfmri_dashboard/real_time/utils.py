@@ -98,8 +98,8 @@ def log_q_table(q_table, last_action, action, n_bins, output_path):
     # plot location of last action
     if action is not None:
         heatmap.add_trace(go.Scatter(
-            x=[last_action[1] * n_bins,  action[1] * n_bins],
-            y=[last_action[0] * n_bins,  action[0] * n_bins],
+            x=np.clip([last_action[1] * n_bins,  action[1] * n_bins], a_min=0, a_max=n_bins-1),
+            y=np.clip([last_action[0] * n_bins,  action[0] * n_bins], a_min=0, a_max=n_bins-1),
             mode='markers',
             marker=dict(color=("green", "red"), size=20),
             showlegend=False,

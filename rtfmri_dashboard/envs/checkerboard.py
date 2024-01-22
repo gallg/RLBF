@@ -1,32 +1,35 @@
-from rtfmri_dashboard import config
+from pathlib import Path
 from posixpath import join
 import numpy as np
-import pygame
+import pyray as rl
+import os
 
 
 class CheckerBoardEnv:
     def __init__(self, board=None, cross=None, render_mode=None):
-        self.screen_width = 600
-        self.screen_height = 600
-        self.board_size = config.board_size
-        self.cross_size = config.cross_size
+        self.screen_width = 1280
+        self.screen_height = 720
+        self.board_scale = 0.6
+        self.cross_scale = 0.2
+        self.center = (self.screen_width // 2, self.screen_height // 2)
 
         self.contrast = 0
         self.frequency = 0
         self.flickering_timer = 0
         self.resting_state = True
         self.render_mode = render_mode
+        self.fps = 30
 
         if self.render_mode == "human":
-            pygame.init()
-            self.screen_size = (self.screen_width, self.screen_height)
-            self.screen = pygame.display.set_mode(self.screen_size, pygame.RESIZABLE)
-            self.background = (0, 0, 0)
+            rl.init_window(self.screen_width, self.screen_height, "Checkerboard Environment")
+            rl.clear_background(rl.BLACK)
+            rl.set_target_fps(self.fps)
 
-            self.checkerboard_image = pygame.image.load(board).convert_alpha()
-            self.cross_image = pygame.image.load(cross).convert_alpha()
-            self.checkerboard = pygame.transform.scale(self.checkerboard_image, (self.board_size, self.board_size))
-            self.cross = pygame.transform.scale(self.cross_image, (self.cross_size, self.cross_size))
+            self.checkerboard_texture = rl.load_texture(str(board))
+            self.cross_texture = rl.load_texture(str(cross))
+
+            self.board_size = (self.checkerboard_texture.width, self.checkerboard_texture.height)
+            self.cross_size = (self.cross_texture.width, self.cross_texture.height)
 
     def reset(self):
         self.resting_state = True
@@ -35,71 +38,67 @@ class CheckerBoardEnv:
         return observation
 
     def step(self, output_dir):
-        try:
-            # state = np.load(join(output_dir, "state.npy"), allow_pickle=True)
+        if os.path.isfile(join(output_dir, "state.bin")):
             state = np.fromfile(join(output_dir, "state.bin"))
             if not state.shape[0] == 0:
                 (self.resting_state,
-                 self.contrast,
-                 self.frequency) = state
-        except:  # ToDo: remove pass and check file integrity;
-            pass
+                self.contrast,
+                self.frequency) = state
+        else:
+            (self.resting_state,
+            self.contrast,
+            self.frequency) = (True, 0, 0)
 
     def render(self):
-        if self.render_mode == "human":
-            self.event_handler()
-            self.screen.fill(self.background)
+        if self.render_mode != "human":
+            return
 
-            if self.contrast <= 0 or self.resting_state:
-                self.screen.blit(
-                    self.cross,
-                    ((self.screen.get_width() - self.cross.get_width()) / 2,
-                     (self.screen.get_height() - self.cross.get_height()) / 2)
-                )
-                pygame.display.flip()
-                return
+        self.event_handler()
+        rl.begin_drawing()
 
-            brightness = self.contrast * 255
-            self.flickering_timer += self.frequency
+        cross_center = (
+            self.center[0] - (self.cross_size[0] * self.cross_scale) / 2,
+            self.center[1] - (self.cross_size[1] * self.cross_scale) / 2
+        )
 
-            base_checkerboard = self.checkerboard.copy()
-            base_checkerboard.fill((brightness, brightness, brightness, 128), special_flags=pygame.BLEND_RGBA_MULT)
+        board_center = (
+            self.center[0] - (self.board_size[0] * self.board_scale) / 2,
+            self.center[1] - (self.board_size[1] * self.board_scale) / 2
+        )
 
-            if self.flickering_timer >= 1.0:
-                self.flickering_timer = 0
-                base_checkerboard = pygame.transform.flip(base_checkerboard, True, False)
+        rl.draw_texture_ex(self.cross_texture, cross_center, 0, self.cross_scale, rl.GRAY)
+        rl.end_drawing()
 
-            self.screen_size = self.screen.get_size()
-            checkerboard_center = (
-                (self.screen_size[0] - self.board_size) / 2,
-                (self.screen_size[1] - self.board_size) / 2
-            )
+        if not self.resting_state:
+            # adjust contrast
+            brightness = int(self.contrast * 255)
+            base_checkerboard = self.checkerboard_texture
+            board_color = rl.Color(brightness, brightness, brightness, 255)
 
-            cross_center = (
-                (self.screen_size[0] - self.cross.get_width()) / 2,
-                (self.screen_size[1] - self.cross.get_height()) / 2
-            )
+            # adjust frequency
+            if self.frequency == 0:
+                self.flickering_timer = 1.0
+            else:
+                adjusted_frequency = self.frequency * 30
+                self.flickering_timer += adjusted_frequency / self.fps
 
-            self.screen.blit(base_checkerboard, checkerboard_center)
-            self.screen.blit(self.cross, cross_center)
+                if self.flickering_timer >= 1.0:
+                    rl.begin_drawing()
+                    rl.draw_texture_ex(base_checkerboard, board_center, 0, self.board_scale, board_color)
+                    rl.end_drawing()
+                    self.flickering_timer = 0
 
-            # ToDo: make checkerboard rect not hardcoded;
-            pygame.display.update(pygame.Rect(0, 0, 860, 1000))
-            pygame.time.Clock().tick(config.fps)
+        if self.frequency > 0:
+            rl.clear_background(rl.BLACK)
+
+        rl.set_window_title(f"Contrast: {self.contrast}, Frequency: {self.frequency}")
 
     def event_handler(self):
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                self.close()
-            elif event.type == pygame.VIDEORESIZE:
-                new_size = event.dict['size']
-                self.screen = pygame.display.set_mode(
-                    new_size,
-                    pygame.FULLSCREEN,
-                    vsync=True
-                )
+        if rl.window_should_close():
+            self.close()
+        elif rl.is_key_pressed(rl.KEY_F11):
+            rl.toggle_fullscreen()
 
     @staticmethod
     def close():
-        pygame.display.quit()
-        pygame.quit()
+        rl.close_window()

@@ -27,6 +27,7 @@ render_only = settings.getboolean('REAL_TIME', 'render_only')
 
 # reinforcement learning settings;
 num_bins_per_observation = settings.getint('Q_LEARNING', 'n_bins')
+q_table_init = settings.getfloat('Q_LEARNING', 'q_table_init')
 kernel_size = settings.getint('Q_LEARNING', 'kernel_size')
 kernel_sigma = settings.getfloat('Q_LEARNING', 'kernel_sigma')
 conv_window_size = settings.getint('Q_LEARNING', 'conv_window_size')
