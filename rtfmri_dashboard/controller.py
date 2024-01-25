@@ -137,7 +137,13 @@ if __name__ == "__main__":
 
     # open rendering in another python process;
     cmd = ["python", "./envs/render.py"]
-    process = subprocess.Popen(cmd)
+    render = subprocess.Popen(cmd)
+
+    # ToDo: plug dashboard into the real-time program;
+    # ToDo: check if nuisance regressor is needed, otherwise remove it;
+    # open dashboard in another python process;
+    # cmd = ["python", "./real_time/dashboard.py"]
+    # dashboard = subprocess.Popen(cmd)
 
     try:
         run_acquisition(
@@ -153,7 +159,8 @@ if __name__ == "__main__":
 
     # save acquired data and decide whether to restart or not;
     except KeyboardInterrupt:
-        process.terminate()
+        render.terminate()
+        # dashboard.terminate()
         env.stop_realtime()
         msg = input("Restart? [y/n]: ")
         if msg == "y":

@@ -1,4 +1,4 @@
-from rtfmri_dashboard.real_time.utils import pad_array, inverse_roll, log_q_table, log_convergence
+from rtfmri_dashboard.real_time.utils import pad_array, inverse_roll
 from rtfmri_dashboard.agents.utils import generate_gaussian_kernel, discretize_observation
 from rtfmri_dashboard.agents.utils import convergence
 from rtfmri_dashboard.agents.soft_q_learner import SoftQAgent, create_bins
@@ -34,6 +34,7 @@ class RealTimeEnv:
         self.temporary_data = []
         self.real_time_data = []
         self.real_time_noise = []
+        self.motion = np.array([0, 0, 0, 0, 0, 0])
 
         # initialize environment;
         self.convergence_window_size = 0
@@ -54,7 +55,8 @@ class RealTimeEnv:
         # initialize log;
         self.log_realtime(
             [0, 0],
-            None
+            None,
+            self.motion
         )
 
         self.serializable_hrf = []
@@ -113,15 +115,6 @@ class RealTimeEnv:
 
         # convergence parameters;
         self.convergence_window_size = config.conv_window_size
-
-        # log Q-table;
-        log_q_table(
-            self.agent.q_table,
-            None,
-            None,
-            None,
-            join(self.output_dir, "q_table.png")
-        )
 
     def initialize_hrf(self):
         self.epoch_duration = config.block_size + config.rest_size
@@ -196,7 +189,7 @@ class RealTimeEnv:
             )
 
             # motion correction;
-            volume = motion_correction(
+            volume, motion = motion_correction(
                 aligned,
                 self.reference,
                 to_ants=True
@@ -222,6 +215,8 @@ class RealTimeEnv:
                 self.temporary_data.append(pad_array(data, self.temporary_data))
                 if noise is not None:
                     self.noise.append(noise)
+
+                self.motion = np.vstack([self.motion, motion])
 
             # if block has finished, make environment step;
             if self.collected_volumes == self.epoch_duration:
@@ -263,7 +258,8 @@ class RealTimeEnv:
                     self.logger = threading.Thread(
                         target=self.log_realtime, args=(
                             last_observation,
-                            self.observation
+                            self.observation,
+                            self.motion
                         )
                     )
                     self.logger.start()
@@ -271,7 +267,7 @@ class RealTimeEnv:
                 # reset important variable and start new epoch;
                 self.reset_realtime()
 
-    def log_realtime(self, last_action, current_action):
+    def log_realtime(self, last_action, current_action, motion):
         current_data = self.real_time_data
 
         # standardize signal for visualization purposes;
@@ -283,26 +279,51 @@ class RealTimeEnv:
         current_noise = self.roll_over_data(self.real_time_noise)
         current_data = self.roll_over_data(current_data)
 
-        # ToDo: check convergence calculation and output, add it to the dashboard;
-        # ToDo: add rotations and translation from motion correction to the dashboard;
-        # ToDo: integrate new changes, with the dashboard and the program;
-
         # serialize and log them in the json file;
         serializable_reward = json.dumps(self.reward)
         serializable_data = json.dumps(current_data.tolist())
         serializable_noise = json.dumps(current_noise.tolist())
         serializable_table = json.dumps(self.agent.q_table.tolist())
+        serializable_convergence = json.dumps(self.convergence)
+
+        # motion parameters;
+        if self.current_epoch == 1:
+            rot_x, rot_y, rot_z = [0, 0, 0]
+            trs_x, trs_y, trs_z = [0, 0, 0]
+        else:
+            rot_x = json.dumps(motion[:, 0].tolist())
+            rot_y = json.dumps(motion[:, 1].tolist())
+            rot_z = json.dumps(motion[:, 2].tolist())
+            trs_x = json.dumps(motion[:, 3].tolist())
+            trs_y = json.dumps(motion[:, 4].tolist())
+            trs_z = json.dumps(motion[:, 5].tolist())
+
+        # agents actions;
+        contrast, frequency = last_action
+        last_action = json.dumps(tuple(last_action))
+
+        if current_action is not None:
+            current_action = json.dumps(tuple(current_action))
 
         log = {
-            "contrast": last_action[0],
-            "frequency": last_action[1],
+            "contrast": contrast,
+            "frequency": frequency,
             "reward": serializable_reward,
             "resting_state": self.resting_state,
             "epoch": self.current_epoch,
             "hrf": self.serializable_hrf,
             "fmri_data": serializable_data,
             "noise": serializable_noise,
-            "q_table": serializable_table
+            "convergence": serializable_convergence,
+            "q_table": serializable_table,
+            "rotation x": rot_x,
+            "rotation y": rot_y,
+            "rotation z": rot_z,
+            "translation x": trs_x,
+            "translation y": trs_y,
+            "translation z": trs_z,
+            "last action": last_action,
+            "next action": current_action
         }
 
         try:
@@ -318,23 +339,10 @@ class RealTimeEnv:
             json_file.seek(0)
             json.dump(json_data, json_file, indent=4)
 
-        # log Q-table;
-        log_q_table(
-            self.agent.q_table,
-            last_action,
-            current_action,
-            config.num_bins_per_observation,
-            join(self.output_dir, "q_table.png")
-        )
-
-        log_convergence(
-            self.convergence,
-            self.output_dir
-        )
-
     def reset_realtime(self):
         self.temporary_data = []
         self.noise = []
+        self.motion = np.array([0, 0, 0, 0, 0, 0])
         self.resting_state = True
         self.collected_volumes = 0
         self.volume_counter = 0

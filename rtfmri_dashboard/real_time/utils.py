@@ -1,7 +1,4 @@
 from functools import partial
-from posixpath import join
-import plotly.graph_objs as go
-import plotly.io as pio
 import numpy as np
 import pydicom
 import hashlib
@@ -85,37 +82,3 @@ def pad_array(array, reference):
         padding_size = abs(len(reference[0]) - len(array))
         array = np.pad(array, (0, padding_size))
     return array
-
-
-def log_q_table(q_table, last_action, action, n_bins, output_path):
-    heatmap = go.Figure(data=go.Heatmap(z=q_table))
-    heatmap.update_layout(
-        width=600,
-        height=600,
-        yaxis=dict(scaleanchor="x", scaleratio=1),
-    )
-
-    # plot location of last action
-    if action is not None:
-        heatmap.add_trace(go.Scatter(
-            x=np.clip([last_action[1] * n_bins,  action[1] * n_bins], a_min=0, a_max=n_bins-1),
-            y=np.clip([last_action[0] * n_bins,  action[0] * n_bins], a_min=0, a_max=n_bins-1),
-            mode='markers',
-            marker=dict(color=("green", "red"), size=20),
-            showlegend=False,
-        ))
-    pio.write_image(heatmap, output_path)
-
-
-def log_convergence(convergence, output_dir):
-    fig = go.Figure()
-    fig.update_layout(
-        width=600,
-        height=600,
-        yaxis=dict(scaleratio=1, range=[0, 1]),
-    )
-
-    # create convergence plot;
-    fig.add_trace(
-        go.Scatter(x=list(range(len(convergence))), y=convergence, mode='lines', name='Convergence'))
-    fig.write_image(join(output_dir, "convergence.png"), format='png')

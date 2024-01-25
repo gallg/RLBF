@@ -98,28 +98,38 @@ def ants_transform(moving, fixed, transformation):
 
 
 def mcflirt(infile, reference, outfile):
-    cmd = ["mcflirt", "-in", infile, "-reffile", reference, "-out", outfile]
+    cmd = ["mcflirt", "-in", infile, "-reffile", reference, "-out", outfile, "-plots"]
     subprocess.run(cmd)
 
 
-def motion_correction(volume, reference, to_ants=False):
-    fin, infile = mkstemp(suffix=".nii.gz")
-    fout, outfile = mkstemp(suffix=".nii.gz")
-    volume.to_filename(infile)
-    mcflirt(infile, reference, outfile)
-    os.close(fin)
-    os.close(fout)
+def get_motion_params(filename):
+    with open(filename, "r") as f:
+        params = f.read()
+        params = np.array(params.split()).astype(np.float32)
+        f.close()
+    return np.array(params)
 
-    corrected_volume = nib.load(outfile)
+
+def motion_correction(volume, reference, to_ants=False):
+    filein, input_file = mkstemp(suffix=".nii.gz")
+    fileout, output_file = mkstemp(suffix=".nii.gz")
+    volume.to_filename(input_file)
+    mcflirt(input_file, reference, output_file)
+    os.close(filein)
+    os.close(fileout)
+
+    corrected_volume = nib.load(output_file)
 
     if to_ants:
         corrected_volume = ants.from_nibabel(corrected_volume)
 
-    # Clean temporary data;
-    os.remove(infile)
-    os.remove(outfile)
+    motion = get_motion_params(join("/tmp", output_file + ".par"))
 
-    return corrected_volume
+    # Clean temporary data;
+    os.remove(input_file)
+    os.remove(output_file)
+
+    return corrected_volume, motion
 
 
 def run_preprocessing(volume, template, affine, transformation=None, transform_type="SyNBold", preprocessing=False):
