@@ -8,11 +8,11 @@ import ast
 import os
 
 
-def log_q_table(table, last_obs, next_obs, n_bins):
+def log_q_table(table, last_obs, cur_obs, n_bins):
     heatmap = px.imshow(table)
 
     # plot location of last action;
-    if not (next_obs is None):
+    if not (cur_obs is None):
         heatmap.add_trace(go.Scatter(
             x=np.clip([last_obs[1] * n_bins], a_min=0, a_max=n_bins - 1),
             y=np.clip([last_obs[0] * n_bins], a_min=0, a_max=n_bins - 1),
@@ -23,12 +23,12 @@ def log_q_table(table, last_obs, next_obs, n_bins):
         ))
 
         heatmap.add_trace(go.Scatter(
-            x=np.clip([next_obs[1] * n_bins], a_min=0, a_max=n_bins - 1),
-            y=np.clip([next_obs[0] * n_bins], a_min=0, a_max=n_bins - 1),
+            x=np.clip([cur_obs[1] * n_bins], a_min=0, a_max=n_bins - 1),
+            y=np.clip([cur_obs[0] * n_bins], a_min=0, a_max=n_bins - 1),
             mode='markers',
             marker=dict(color="green", size=15),
             showlegend=False,
-            name="next action"
+            name="current action"
         ))
 
     return heatmap
@@ -50,6 +50,8 @@ def check_integrity(filesize, file_name):
         else:
             filesize = current_size
             return False, filesize
+    else:
+        return False, -1
 
 
 st.set_page_config(
@@ -89,7 +91,7 @@ while True:
             q_table = data.loc[data.index.max(), "q_table"]
             fmridata = data.loc[data.index.max(), "fmri_data"]
             last_action = data.loc[data.index.max(), "last action"]
-            next_action = data.loc[data.index.max(), "next action"]
+            current_action = data.loc[data.index.max(), "current action"]
             convergence = data.loc[data.index.max(), "convergence"]
             reward = data.loc[data.index.max(), "reward"]
             mc_ratio = data.loc[data.index.max(), "current_motion"]
@@ -117,7 +119,7 @@ while True:
         reward = check_empty_data(reward)
         mc_ratio = check_empty_data(mc_ratio)
         last_action = check_empty_data(last_action)
-        next_action = check_empty_data(next_action)
+        current_action = check_empty_data(current_action)
 
         rot_x = check_empty_data(rot_x)
         rot_y = check_empty_data(rot_y)
@@ -162,7 +164,7 @@ while True:
                 try:
                     st.image(ref_vol, use_column_width=True)
                 except (AttributeError, OSError) as e:
-                    st.markdown("")
+                    pass
             else:
                 st.markdown("Waiting for reference volume.")
 
@@ -172,13 +174,13 @@ while True:
                 try:
                     st.image(cur_vol, use_column_width=True)
                 except (AttributeError, OSError) as e:
-                    st.markdown("")
+                    pass
             else:
                 st.markdown("Waiting for reference volume.")
 
         with middle_right_column:
             st.markdown("##### Q-table")
-            q_table = log_q_table(q_table, last_action, next_action, 10)
+            q_table = log_q_table(q_table, last_action, current_action, 10)
             st.plotly_chart(q_table, use_container_width=True)
 
         # Plot Real-Time Data;

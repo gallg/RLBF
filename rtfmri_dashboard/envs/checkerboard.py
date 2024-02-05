@@ -82,11 +82,11 @@ class CheckerBoardEnv:
                 adjusted_frequency = self.frequency * 30
                 self.flickering_timer += adjusted_frequency / self.fps
 
-                if self.flickering_timer >= 1.0:
-                    rl.begin_drawing()
-                    rl.draw_texture_ex(base_checkerboard, board_center, 0, self.board_scale, board_color)
-                    rl.end_drawing()
-                    self.flickering_timer = 0
+            if self.flickering_timer >= 1.0:
+                rl.begin_drawing()
+                rl.draw_texture_ex(base_checkerboard, board_center, 0, self.board_scale, board_color)
+                rl.end_drawing()
+                self.flickering_timer = 0
 
         if self.frequency >= 0.1 or self.resting_state:
             rl.clear_background(rl.BLACK)

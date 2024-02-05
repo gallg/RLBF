@@ -1,5 +1,6 @@
 from rtfmri_dashboard.real_time.utils import dcm_to_array
 from nilearn.glm.first_level import compute_regressor
+from rtfmri_dashboard import config
 from shutil import copyfile
 from posixpath import join
 from tempfile import mkstemp
@@ -22,7 +23,7 @@ def plot_image(image, mask, reorient=False, filename=None):
                               dpi=72)
 
 
-def draw_roi(volume, output_dir, radius=10):
+def draw_roi(volume, output_dir, radius=config.custom_mask_size):
     affine = np.eye(4)
 
     volume = reorient_volume(volume, affine, to_ants=True)

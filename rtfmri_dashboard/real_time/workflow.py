@@ -250,7 +250,7 @@ class RealTimeEnv:
                     self.reward.append(reward)
                     self.agent.q_table = self.agent.update_q_table(reward, self.previous_state, old_q_value)
                 else:
-                    reward = self.reward[-1]
+                    reward = self.reward[-1] if self.current_epoch > 1 else 0
                     self.reward.append(reward)
 
                 if not config.render_only:
@@ -337,7 +337,7 @@ class RealTimeEnv:
             "translation y": trs_y,
             "translation z": trs_z,
             "last action": last_action,
-            "next action": next_action,
+            "current action": next_action,
             "current_motion": serializable_motion_threshold,
             "motion_max_ratio": config.motion_max_ratio
         }

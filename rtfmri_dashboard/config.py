@@ -24,6 +24,7 @@ repetition_time = settings.getfloat('REAL_TIME', 'tr')
 render_only = settings.getboolean('REAL_TIME', 'render_only')
 motion_threshold = settings.getfloat('REAL_TIME', 'motion_threshold')
 motion_max_ratio = settings.getfloat('REAL_TIME', 'motion_max_ratio')
+custom_mask_size = settings.getint('REAL_TIME', 'custom_mask_size')
 
 # ------------------------------------------------
 

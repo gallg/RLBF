@@ -139,7 +139,6 @@ if __name__ == "__main__":
     cmd = ["python", "./envs/render.py"]
     render = subprocess.Popen(cmd)
 
-    # ToDo: check rendering behavior when frequency is 0 or 1;
     try:
         run_acquisition(
             scanner_dir,
