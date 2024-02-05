@@ -1,4 +1,4 @@
-from real_time.utils import check_file_integrity, dcm_to_array, reset_log
+from real_time.utils import check_file_integrity, dcm_to_array, reset_log, backup_data
 from real_time.preprocessing import save_preprocessed_data, load_preprocessed_data
 from real_time.preprocessing import get_image, select_preprocessing
 from real_time.utils import scan_dicom_folder
@@ -139,12 +139,7 @@ if __name__ == "__main__":
     cmd = ["python", "./envs/render.py"]
     render = subprocess.Popen(cmd)
 
-    # ToDo: plug dashboard into the real-time program;
-    # ToDo: check if nuisance regressor is needed, otherwise remove it;
-    # open dashboard in another python process;
-    # cmd = ["python", "./real_time/dashboard.py"]
-    # dashboard = subprocess.Popen(cmd)
-
+    # ToDo: check rendering behavior when frequency is 0 or 1;
     try:
         run_acquisition(
             scanner_dir,
@@ -160,8 +155,8 @@ if __name__ == "__main__":
     # save acquired data and decide whether to restart or not;
     except KeyboardInterrupt:
         render.terminate()
-        # dashboard.terminate()
         env.stop_realtime()
+        backup_data(scanner_dir, output_dir, "../data_out/")
         msg = input("Restart? [y/n]: ")
         if msg == "y":
             os.execv(sys.executable, ['python'] + [sys.argv[0]])

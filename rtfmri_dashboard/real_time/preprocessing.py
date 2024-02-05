@@ -102,6 +102,23 @@ def mcflirt(infile, reference, outfile):
     subprocess.run(cmd)
 
 
+def frame_wise_displacement(motion):
+    motion_diff = np.diff(motion, axis=0, prepend=0)
+    fd = np.sum(np.abs(motion_diff[:, 0:3]) + 50 * (np.pi/180), axis=1) * np.sum(np.abs(motion_diff[:, 3:]), axis=1)
+    return fd
+
+
+def check_motion_threshold(motion, displacement_threshold=0.5, ratio_of_displaced_volumes=0.6):
+    fd = frame_wise_displacement(motion)
+    n_displaced_frames = np.sum(fd > displacement_threshold)
+    fraction_displaced_frames = n_displaced_frames / len(fd)
+
+    if fraction_displaced_frames > ratio_of_displaced_volumes:
+        return True, fraction_displaced_frames
+    else:
+        return False, fraction_displaced_frames
+
+
 def get_motion_params(filename):
     with open(filename, "r") as f:
         params = f.read()

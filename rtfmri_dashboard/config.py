@@ -22,6 +22,8 @@ overlap_samples = settings.getint('REAL_TIME', 'overlap_samples')
 hrf_amplitude = settings.getfloat('REAL_TIME', 'hrf_amplitude')
 repetition_time = settings.getfloat('REAL_TIME', 'tr')
 render_only = settings.getboolean('REAL_TIME', 'render_only')
+motion_threshold = settings.getfloat('REAL_TIME', 'motion_threshold')
+motion_max_ratio = settings.getfloat('REAL_TIME', 'motion_max_ratio')
 
 # ------------------------------------------------
 

@@ -76,7 +76,7 @@ class CheckerBoardEnv:
             board_color = rl.Color(brightness, brightness, brightness, 255)
 
             # adjust frequency
-            if self.frequency == 0:
+            if self.frequency < 0.1:
                 self.flickering_timer = 1.0
             else:
                 adjusted_frequency = self.frequency * 30
@@ -88,7 +88,7 @@ class CheckerBoardEnv:
                     rl.end_drawing()
                     self.flickering_timer = 0
 
-        if self.frequency > 0:
+        if self.frequency >= 0.1 or self.resting_state:
             rl.clear_background(rl.BLACK)
 
         rl.set_window_title(f"Contrast: {self.contrast}, Frequency: {self.frequency}")

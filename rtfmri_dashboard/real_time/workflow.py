@@ -1,8 +1,8 @@
-from rtfmri_dashboard.real_time.utils import pad_array, inverse_roll
 from rtfmri_dashboard.agents.utils import generate_gaussian_kernel, discretize_observation
-from rtfmri_dashboard.agents.utils import convergence
+from rtfmri_dashboard.real_time.utils import pad_array, inverse_roll
 from rtfmri_dashboard.agents.soft_q_learner import SoftQAgent, create_bins
 from rtfmri_dashboard.envs.checkerboard import CheckerBoardEnv
+from rtfmri_dashboard.agents.utils import convergence
 from rtfmri_dashboard.real_time.preprocessing import *
 from posixpath import join
 
@@ -35,6 +35,7 @@ class RealTimeEnv:
         self.real_time_data = []
         self.real_time_noise = []
         self.motion = np.array([0, 0, 0, 0, 0, 0])
+        self.motion_threshold = []
 
         # initialize environment;
         self.convergence_window_size = 0
@@ -222,6 +223,7 @@ class RealTimeEnv:
             if self.collected_volumes == self.epoch_duration:
                 last_observation = self.observation
 
+                # Calculate convergence;
                 if self.current_epoch > self.convergence_window_size:
                     self.convergence.append(
                         convergence(
@@ -230,15 +232,26 @@ class RealTimeEnv:
                         )
                     )
 
+                # Check motion threshold;
+                skip_q_table_update, mc_ratio = check_motion_threshold(
+                    self.motion,
+                    displacement_threshold=config.motion_threshold,
+                    ratio_of_displaced_volumes=config.motion_max_ratio
+                )
+                # collect ratio of volumes with high displacement for visualization;
+                self.motion_threshold.append(mc_ratio)
+
                 # get old q-value;
                 old_q_value = self.agent.q_table[self.previous_state]
 
-                # get reward;
-                reward = self.calculate_reward()
-                self.reward.append(reward)
-
-                # compute next q-value and update q-table;
-                self.agent.q_table = self.agent.update_q_table(reward, self.previous_state, old_q_value)
+                # compute reward and update q-table (if motion doesn't exceed the threshold);
+                if not skip_q_table_update:
+                    reward = self.calculate_reward()
+                    self.reward.append(reward)
+                    self.agent.q_table = self.agent.update_q_table(reward, self.previous_state, old_q_value)
+                else:
+                    reward = self.reward[-1]
+                    self.reward.append(reward)
 
                 if not config.render_only:
                     self.observation = self.agent.soft_q_action_selection()
@@ -267,7 +280,7 @@ class RealTimeEnv:
                 # reset important variable and start new epoch;
                 self.reset_realtime()
 
-    def log_realtime(self, last_action, current_action, motion):
+    def log_realtime(self, last_action, next_action, motion):
         current_data = self.real_time_data
 
         # standardize signal for visualization purposes;
@@ -285,6 +298,7 @@ class RealTimeEnv:
         serializable_noise = json.dumps(current_noise.tolist())
         serializable_table = json.dumps(self.agent.q_table.tolist())
         serializable_convergence = json.dumps(self.convergence)
+        serializable_motion_threshold = json.dumps(self.motion_threshold)
 
         # motion parameters;
         if self.current_epoch == 1:
@@ -302,8 +316,8 @@ class RealTimeEnv:
         contrast, frequency = last_action
         last_action = json.dumps(tuple(last_action))
 
-        if current_action is not None:
-            current_action = json.dumps(tuple(current_action))
+        if next_action is not None:
+            next_action = json.dumps(tuple(next_action))
 
         log = {
             "contrast": contrast,
@@ -323,7 +337,9 @@ class RealTimeEnv:
             "translation y": trs_y,
             "translation z": trs_z,
             "last action": last_action,
-            "next action": current_action
+            "next action": next_action,
+            "current_motion": serializable_motion_threshold,
+            "motion_max_ratio": config.motion_max_ratio
         }
 
         try:

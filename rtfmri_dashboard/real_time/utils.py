@@ -1,7 +1,10 @@
 from functools import partial
+from posixpath import join
 import numpy as np
 import pydicom
 import hashlib
+import shutil
+import time
 import json
 import re
 import os
@@ -82,3 +85,15 @@ def pad_array(array, reference):
         padding_size = abs(len(reference[0]) - len(array))
         array = np.pad(array, (0, padding_size))
     return array
+
+
+def backup_data(scan_dir, log_dir, out_dir):
+    prompt = input("Save acquired data? [yes/no]")
+    if prompt == "yes" or prompt == "y":
+        current_time = time.strftime("%Y%m%d-%H%M%S")
+        print("Wait while data is being saved...")
+        shutil.make_archive(join(out_dir, f"run_{current_time}"), 'zip', scan_dir)
+        shutil.make_archive(join(out_dir, f"log_{current_time}"), 'zip', log_dir)
+        print("Data saved!")
+    else:
+        print("Data has not been saved!")
