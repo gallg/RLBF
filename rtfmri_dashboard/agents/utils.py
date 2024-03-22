@@ -45,4 +45,9 @@ def euclidean_2d(x, v):
 def convergence(maxima, current_window_size):
     previous_window = maxima[-current_window_size:-1]
     current_window = maxima[-(current_window_size - 1):]
-    return euclidean_2d(previous_window, current_window)
+
+    conv = euclidean_2d(previous_window, current_window)
+    if not np.isnan(conv):
+        return conv
+    else:
+        return 0

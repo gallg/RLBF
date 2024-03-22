@@ -10,7 +10,7 @@ def render_env():
     )
 
     while not rl.window_should_close():
-        env.step("/home/giuseppe/PNI/Bkup/Projects/rtfmri_dashboard/log")
+        env.step("/home/giuseppe/rtfmri/rtfmri_dashboard/log")
         env.render()
 
     env.close()
