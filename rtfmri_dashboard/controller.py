@@ -120,6 +120,8 @@ def run_acquisition(
         # reset volume;
         current_volume = None
 
+# ToDo: move temporary data cleaning at the end of the program;
+
 
 if __name__ == "__main__":
     output_dir = "/home/giuseppe/rtfmri/rtfmri_dashboard/log"

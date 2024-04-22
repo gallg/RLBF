@@ -1,6 +1,7 @@
 from rtfmri_dashboard.real_time.utils import dcm_to_array
 from nilearn.glm.first_level import compute_regressor
 from rtfmri_dashboard import config
+from scipy.stats import rankdata
 from shutil import copyfile
 from posixpath import join
 from tempfile import mkstemp
@@ -144,10 +145,22 @@ def motion_correction(volume, reference, to_ants=False):
     motion = get_motion_params(join("/tmp", output_file + ".par"))
 
     # Clean temporary data;
-    os.remove(input_file)
-    os.remove(output_file)
+    # os.remove(input_file)
+    # os.remove(output_file)
+    # os.remove(output_file + ".par")
 
     return corrected_volume, motion
+
+
+def rank_harmonization(volume, to_ants=False):
+    data, vol_size, affine = (volume. get_fdata(), volume.shape, volume.affine)
+    data = rankdata(data).reshape(vol_size)
+    vol = nib.Nifti1Image(data, affine)
+
+    if to_ants:
+        vol = ants.from_nibabel(vol)
+
+    return vol
 
 
 def run_preprocessing(volume, template, affine, transformation=None, transform_type="SyNBold", preprocessing=False):

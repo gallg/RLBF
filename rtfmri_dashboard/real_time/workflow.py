@@ -4,6 +4,7 @@ from rtfmri_dashboard.agents.soft_q_learner import SoftQAgent, create_bins
 from rtfmri_dashboard.envs.checkerboard import CheckerBoardEnv
 from rtfmri_dashboard.agents.utils import convergence
 from rtfmri_dashboard.real_time.preprocessing import *
+from scipy.special import expit
 from posixpath import join
 
 import rtfmri_dashboard.config as config
@@ -167,6 +168,10 @@ class RealTimeEnv:
             self.hrf.reshape(-1, 1),
             current_noise.reshape(-1, 1)
         )
+
+        # adjust reward using sigmoid function;
+        reward = expit(reward)
+
         return reward
 
     def run_realtime(self, volume, template, mask, affine, transformation=None, nuisance_mask=None):
@@ -193,6 +198,12 @@ class RealTimeEnv:
             volume, motion = motion_correction(
                 aligned,
                 self.reference,
+                to_ants=False
+            )
+
+            # harmonize data to avoid effects of global signal;
+            volume = rank_harmonization(
+                volume,
                 to_ants=True
             )
 
