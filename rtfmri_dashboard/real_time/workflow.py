@@ -1,5 +1,5 @@
 from rtfmri_dashboard.agents.utils import generate_gaussian_kernel, discretize_observation
-from rtfmri_dashboard.real_time.utils import pad_array, inverse_roll
+from rtfmri_dashboard.real_time.utils import pad_array, inverse_roll, clean_temporary_data
 from rtfmri_dashboard.agents.soft_q_learner import SoftQAgent, create_bins
 from rtfmri_dashboard.envs.checkerboard import CheckerBoardEnv
 from rtfmri_dashboard.agents.utils import convergence
@@ -379,3 +379,4 @@ class RealTimeEnv:
         # save acquired data and close environment;
         np.save(join(self.output_dir, "data.npy"), self.real_time_data)
         np.save(join(self.output_dir, "noise.npy"), self.real_time_noise)
+        clean_temporary_data()

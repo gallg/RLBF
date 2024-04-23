@@ -97,3 +97,13 @@ def backup_data(scan_dir, log_dir, out_dir):
         print("Data saved!")
     else:
         print("Data has not been saved!")
+
+
+def clean_temporary_data():
+    for f_name in os.listdir("/tmp"):
+        if f_name == "reference.nii.gz":
+            continue
+        if f_name.endswith((".nii.gz", ".nii.gz.par")):
+            os.remove("/tmp/" + f_name)
+        else:
+            continue

@@ -120,7 +120,8 @@ def run_acquisition(
         # reset volume;
         current_volume = None
 
-# ToDo: move temporary data cleaning at the end of the program;
+
+# ToDo: add noise plotting to the new dashboard;
 
 
 if __name__ == "__main__":
