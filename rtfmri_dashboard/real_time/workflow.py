@@ -1,3 +1,5 @@
+import ants
+
 from rtfmri_dashboard.agents.utils import generate_gaussian_kernel, discretize_observation
 from rtfmri_dashboard.real_time.utils import pad_array, inverse_roll, clean_temporary_data
 from rtfmri_dashboard.agents.soft_q_learner import SoftQAgent, create_bins
@@ -5,6 +7,7 @@ from rtfmri_dashboard.envs.checkerboard import CheckerBoardEnv
 from rtfmri_dashboard.agents.utils import convergence
 from rtfmri_dashboard.real_time.preprocessing import *
 from scipy.special import expit
+from scipy.ndimage import gaussian_filter1d
 from posixpath import join
 
 import rtfmri_dashboard.config as config
@@ -134,13 +137,13 @@ class RealTimeEnv:
         self.resting_state = (True, False)[1 <= self.collected_volumes <= config.block_size]
 
         # save current state for rendering;
-        state = np.array([
-            self.resting_state,
-            self.observation[0],
-            self.observation[1]
-        ])
-        # np.save(join(self.output_dir, "state.npy"), state)
-        state.tofile(join(self.output_dir, "state.bin"))
+        if self.resting_state and self.volume_counter > config.block_size:
+            state = np.array([
+                self.resting_state,
+                self.observation[0],
+                self.observation[1]
+            ])
+            state.tofile(join(self.output_dir, "state.bin"))
 
     def roll_over_data(self, data):
         overlap = (config.overlap_samples, 0)[self.current_epoch == 1]
@@ -153,6 +156,7 @@ class RealTimeEnv:
 
     def calculate_reward(self):
         self.real_time_data.extend(np.median(self.temporary_data, axis=1))
+        # self.real_time_data = gaussian_filter1d(self.real_time_data, sigma=2).tolist()
 
         # save standardized nuisance regressor;
         if len(self.noise) > 0:
@@ -170,7 +174,7 @@ class RealTimeEnv:
         )
 
         # adjust reward using sigmoid function;
-        reward = expit(reward)
+        # reward = expit(reward)
 
         return reward
 
@@ -296,8 +300,7 @@ class RealTimeEnv:
 
         # standardize signal for visualization purposes;
         if len(self.real_time_data) > 0:
-            mu, mu_mean, mu_std = standardize_signal(self.temporary_data, axis=1)
-            current_data = (mu - mu_mean) / mu_std
+            current_data = standardize_signal(self.temporary_data, axis=1)
 
         # get correct data and noise samples;
         current_noise = self.roll_over_data(self.real_time_noise)
@@ -310,6 +313,9 @@ class RealTimeEnv:
         serializable_table = json.dumps(self.agent.q_table.tolist())
         serializable_convergence = json.dumps(self.convergence)
         serializable_motion_threshold = json.dumps(self.motion_threshold)
+
+        # test smoothed data;
+        # serializable_data = json.dumps(gaussian_filter1d(current_data, sigma=2).tolist())
 
         # motion parameters;
         if self.current_epoch == 1:

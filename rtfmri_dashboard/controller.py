@@ -122,6 +122,7 @@ def run_acquisition(
 
 
 # ToDo: add noise plotting to the new dashboard;
+# ToDo: handle case in which motion threshold skips the data for the first volume;
 
 
 if __name__ == "__main__":

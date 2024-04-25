@@ -301,7 +301,8 @@ def get_mask_data(volume, mask, nuisance_mask=None):
 def standardize_signal(data, axis=1):
     mu = np.mean(data, axis=axis)
     mu_mean, mu_std = np.mean(mu), np.std(mu)
-    return mu, mu_mean, mu_std
+    standardized = (mu - mu_mean) / mu_std
+    return standardized
 
 
 def run_glm(y, x, noise):

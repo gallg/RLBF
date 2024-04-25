@@ -1,3 +1,5 @@
+import time
+
 from rtfmri_dashboard import config
 from posixpath import join
 import numpy as np
@@ -6,7 +8,7 @@ import os
 
 
 class CheckerBoardEnv:
-    def __init__(self, board=None, cross=None, render_mode=None):
+    def __init__(self, scandir=None, board=None, cross=None, render_mode=None):
         self.screen_width = 1920
         self.screen_height = 1080
         self.board_scale = config.board_scale
@@ -19,6 +21,14 @@ class CheckerBoardEnv:
         self.resting_state = True
         self.render_mode = render_mode
         self.fps = config.fps
+
+        # timing related variables;
+        self.scandir = scandir
+        self.t0 = len(os.listdir(scandir))
+        self.n_vols = 0
+        self.total_vols = 0
+        self.t_start = 0
+        self.timing = np.array([])
 
         if self.render_mode == "human":
             pr.init_window(self.screen_width, self.screen_height, "Checkerboard Environment")
@@ -40,16 +50,33 @@ class CheckerBoardEnv:
         return observation
 
     def step(self, output_dir):
+        if len(os.listdir(self.scandir)) > self.t0:
+            self.t0 += 1
+            self.n_vols += 1
+            self.total_vols += 1
+
+            if self.total_vols > 1:
+                t_end = time.perf_counter() - self.t_start
+                self.timing = np.append(self.timing, t_end)
+                np.save(join(output_dir, "timing.npy"), self.timing)
+
+        if self.total_vols == 1:
+            self.t_start = time.perf_counter()
+
+        if self.n_vols > config.rest_size:
+            self.resting_state = False
+
+        if self.n_vols > config.rest_size + config.block_size:
+            self.contrast, self.frequency = (0, 0)
+            self.resting_state = True
+            self.n_vols = 1
+
         if os.path.isfile(join(output_dir, "state.bin")):
             state = np.fromfile(join(output_dir, "state.bin"))
-            if not state.shape[0] == 0:
-                (self.resting_state,
-                    self.contrast,
-                    self.frequency) = state
-        else:
-            (self.resting_state,
-                self.contrast,
-                self.frequency) = (True, 0, 0)
+
+            if len(state) > 0 and not self.resting_state:
+                (_, self.contrast, self.frequency) = state
+                os.remove(join(output_dir, "state.bin"))
 
     def render(self):
         if self.render_mode != "human":
