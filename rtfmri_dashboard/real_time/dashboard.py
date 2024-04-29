@@ -72,6 +72,12 @@ log_size = -1
 ref_size = -1
 vol_size = -1
 
+bar_title = None
+selected_index = None
+num_key = np.random.random(1)
+form_key = np.random.random(1)
+
+
 # Dashboard MainLoop;
 while True:
     with placeholder.container():
@@ -83,30 +89,58 @@ while True:
             else:
                 data = pd.read_json(log_path)
 
+            if "current_index" not in st.session_state:
+                st.session_state.current_index = data.index.max()
+
             # load imaging and RL related data;
-            contrast = data.loc[data.index.max(), "contrast"]
-            frequency = data.loc[data.index.max(), "frequency"]
-            resting_state = data.loc[data.index.max(), "resting_state"]
-            epoch = data.loc[data.index.max(), "epoch"]
-            q_table = data.loc[data.index.max(), "q_table"]
-            fmridata = data.loc[data.index.max(), "fmri_data"]
-            last_action = data.loc[data.index.max(), "last action"]
-            current_action = data.loc[data.index.max(), "current action"]
-            convergence = data.loc[data.index.max(), "convergence"]
-            reward = data.loc[data.index.max(), "reward"]
-            mc_ratio = data.loc[data.index.max(), "current_motion"]
-            mc_max_ratio = data.loc[data.index.max(), "motion_max_ratio"]
+            contrast = data.loc[st.session_state.current_index, "contrast"]
+            frequency = data.loc[st.session_state.current_index, "frequency"]
+            resting_state = data.loc[st.session_state.current_index, "resting_state"]
+            epoch = data.loc[st.session_state.current_index, "epoch"]
+            q_table = data.loc[st.session_state.current_index, "q_table"]
+            fmridata = data.loc[st.session_state.current_index, "fmri_data"]
+            last_action = data.loc[st.session_state.current_index, "last action"]
+            current_action = data.loc[st.session_state.current_index, "current action"]
+            convergence = data.loc[st.session_state.current_index, "convergence"]
+            reward = data.loc[st.session_state.current_index, "reward"]
+            mc_ratio = data.loc[st.session_state.current_index, "current_motion"]
+            mc_max_ratio = data.loc[st.session_state.current_index, "motion_max_ratio"]
 
             # Load motion parameters;
-            rot_x = data.loc[data.index.max(), "rotation x"]
-            rot_y = data.loc[data.index.max(), "rotation y"]
-            rot_z = data.loc[data.index.max(), "rotation z"]
-            trs_x = data.loc[data.index.max(), "translation x"]
-            trs_y = data.loc[data.index.max(), "translation y"]
-            trs_z = data.loc[data.index.max(), "translation z"]
+            rot_x = data.loc[st.session_state.current_index, "rotation x"]
+            rot_y = data.loc[st.session_state.current_index, "rotation y"]
+            rot_z = data.loc[st.session_state.current_index, "rotation z"]
+            trs_x = data.loc[st.session_state.current_index, "translation x"]
+            trs_y = data.loc[st.session_state.current_index, "translation y"]
+            trs_z = data.loc[st.session_state.current_index, "translation z"]
 
             # the hypothesis function is found at the first index;
             hrf = data.loc[0, "hrf"]
+
+            # set-up sidebar;
+            with st.sidebar:
+                # update keys;
+                form_key = np.random.random(1)
+                num_key = np.random.random(1)
+
+                if selected_index is None:
+                    bar_title = st.markdown(f"Current data size {data.index.max()}")
+
+                    # volume selector;
+                    selected_index = st.number_input(
+                        "Select block",
+                        key="num_key",
+                        value=st.session_state.current_index,
+                        min_value=0,
+                        max_value=data.index.max()
+                    )
+
+                    # toggle acquisition mode;
+                    acquisition_mode = st.toggle("Acquisition Mode", value=True)
+                    if acquisition_mode:
+                        st.session_state.current_index = data.index.max()
+                    else:
+                        st.session_state.current_index = selected_index
 
         except (ValueError, KeyError) as e:
             continue

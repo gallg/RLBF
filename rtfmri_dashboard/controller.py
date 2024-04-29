@@ -123,7 +123,10 @@ def run_acquisition(
 
 # ToDo: add noise plotting to the new dashboard;
 # ToDo: handle case in which motion threshold skips the data for the first volume;
-
+# ToDo: add visualization of older blocks to checkerboard;
+# ToDo: change viz for hypothesis function hrf * beta + b0;
+# ToDo: test different reward functions;
+# ToDo: test the program with the new changes;
 
 if __name__ == "__main__":
     output_dir = "/home/giuseppe/rtfmri/rtfmri_dashboard/log"
