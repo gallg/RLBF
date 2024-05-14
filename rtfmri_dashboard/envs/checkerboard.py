@@ -29,6 +29,7 @@ class CheckerBoardEnv:
         self.total_vols = 0
         self.t_start = 0
         self.timing = np.array([])
+        self.last_state = True
 
         if self.render_mode == "human":
             pr.init_window(self.screen_width, self.screen_height, "Checkerboard Environment")
@@ -55,10 +56,10 @@ class CheckerBoardEnv:
             self.n_vols += 1
             self.total_vols += 1
 
-            if self.total_vols > 1:
-                t_end = time.perf_counter() - self.t_start
-                self.timing = np.append(self.timing, t_end)
-                np.save(join(output_dir, "timing.npy"), self.timing)
+            # debug time;
+            t_end = time.perf_counter() - self.t_start
+            self.debug_time(t_end)
+            np.save(join(output_dir, "timing.npy"), self.timing)
 
         if self.total_vols == 1:
             self.t_start = time.perf_counter()
@@ -72,11 +73,15 @@ class CheckerBoardEnv:
             self.n_vols = 1
 
         if os.path.isfile(join(output_dir, "state.bin")):
-            state = np.fromfile(join(output_dir, "state.bin"))
+            state = np.fromfile("/mnt/fmritemp/state.bin")
 
             if len(state) > 0 and not self.resting_state:
                 (_, self.contrast, self.frequency) = state
-                os.remove(join(output_dir, "state.bin"))
+
+    def debug_time(self, t_end):
+        if self.resting_state != self.last_state:
+            self.last_state = self.resting_state
+            self.timing = np.append(self.timing, t_end)
 
     def render(self):
         if self.render_mode != "human":

@@ -130,8 +130,8 @@ def get_motion_params(filename):
 
 
 def motion_correction(volume, reference, to_ants=False):
-    filein, input_file = mkstemp(suffix=".nii.gz")
-    fileout, output_file = mkstemp(suffix=".nii.gz")
+    filein, input_file = mkstemp(dir="/mnt/fmritemp", suffix=".nii.gz")
+    fileout, output_file = mkstemp(dir="/mnt/fmritemp", suffix=".nii.gz")
     volume.to_filename(input_file)
     mcflirt(input_file, reference, output_file)
     os.close(filein)
@@ -143,7 +143,7 @@ def motion_correction(volume, reference, to_ants=False):
         corrected_volume = ants.from_nibabel(corrected_volume)
 
     # temp data is not cleaned here, nibabel will lazyload the data later;
-    motion = get_motion_params(join("/tmp", output_file + ".par"))
+    motion = get_motion_params(join("/mnt/fmritemp", output_file + ".par"))
     return corrected_volume, motion
 
 
@@ -227,7 +227,7 @@ def select_preprocessing(
         prompt = input("end preprocessing? [yes/no]")
         if prompt == "yes":
             # save a copy of the preprocessed reference volume;
-            volume.to_filename("/tmp/reference.nii.gz")
+            volume.to_filename("/mnt/fmritemp/reference.nii.gz")
             break
         elif prompt == "no":
             continue
@@ -285,34 +285,34 @@ def generate_hrf_regressor(time_length, duration, onset, amplitude, tr=1.0):
     return signal
 
 
-def get_mask_data(volume, mask, nuisance_mask=None):
-    noise = None
+def get_mask_data(volume, mask):
     data = ants.utils.mask_image(volume, mask).numpy()
     data = data[np.nonzero(data)].tolist()
-
-    # get noise data if there is a nuisance mask;
-    if nuisance_mask is not None:
-        noise = ants.utils.mask_image(volume, nuisance_mask).numpy()
-        noise = noise[np.nonzero(noise)].tolist()
-
-    return data, noise
+    return data
 
 
-def standardize_signal(data, axis=1):
-    mu = np.mean(data, axis=axis)
-    mu_mean, mu_std = np.mean(mu), np.std(mu)
-    standardized = (mu - mu_mean) / mu_std
-    return standardized
+def standardize_signal(data):
+    if not isinstance(data, np.ndarray):
+        data = np.array(data)
+
+    mu = np.mean(data)
+    std_dev = np.std(data)
+    return (data - mu) / std_dev
 
 
-def run_glm(y, x, noise):
+def run_glm(y, x):
     regressors = x
-    if len(noise) > 0:
-        regressors = np.hstack((x, noise))
-
     regressors = sm.add_constant(regressors)
     model = sm.OLS(y, regressors).fit()
 
-    # return noise robust % signal change;
-    alpha, beta = model.params[:2]
-    return (beta/alpha) * 100
+    # test multiple regression;
+    betas = model.params[1]
+    n_best_features = int(len(betas) * 0.1)
+    best_features = np.argpartition(betas, -n_best_features)[-n_best_features:]
+
+    # calculate reward;
+    mean_beta = np.mean(betas[best_features])
+    alpha = np.mean(model.params[0][best_features])
+    reward = (mean_beta / alpha) * 100
+
+    return reward, best_features, alpha, mean_beta

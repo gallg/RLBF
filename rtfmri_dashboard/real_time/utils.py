@@ -73,13 +73,6 @@ def reset_log(log_path):
         json.dump(json_data, json_file)
 
 
-def inverse_roll(arr, overlap, size):
-    rolled_array = (
-        arr[-size - overlap:-overlap],
-        arr[-size:])[overlap == 0]
-    return rolled_array
-
-
 def pad_array(array, reference):
     if len(reference) > 0:
         padding_size = abs(len(reference[0]) - len(array))
@@ -100,10 +93,10 @@ def backup_data(scan_dir, log_dir, out_dir):
 
 
 def clean_temporary_data():
-    for f_name in os.listdir("/tmp"):
+    for f_name in os.listdir("/mnt/fmritemp"):
         if f_name == "reference.nii.gz":
             continue
         if f_name.endswith((".nii.gz", ".nii.gz.par")):
-            os.remove("/tmp/" + f_name)
+            os.remove("/mnt/fmritemp/" + f_name)
         else:
             continue

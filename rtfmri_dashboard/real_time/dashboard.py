@@ -66,17 +66,15 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+has_rerun = True
 log_path = "./log/log.json"
 placeholder = st.empty()
 log_size = -1
 ref_size = -1
 vol_size = -1
 
-bar_title = None
-selected_index = None
-num_key = np.random.random(1)
-form_key = np.random.random(1)
-
+# ToDo: update volume count during non-acquisition mode, when volumes are coming;
+# ToDo: avoid change of volume index in the sidebar, when a new epoch is written in the log;
 
 # Dashboard MainLoop;
 while True:
@@ -91,6 +89,10 @@ while True:
 
             if "current_index" not in st.session_state:
                 st.session_state.current_index = data.index.max()
+
+            if "acquisition_state" in st.session_state:
+                if st.session_state.acquisition_state and has_rerun is False:
+                    st.session_state.current_index = data.index.max()
 
             # load imaging and RL related data;
             contrast = data.loc[st.session_state.current_index, "contrast"]
@@ -116,31 +118,6 @@ while True:
 
             # the hypothesis function is found at the first index;
             hrf = data.loc[0, "hrf"]
-
-            # set-up sidebar;
-            with st.sidebar:
-                # update keys;
-                form_key = np.random.random(1)
-                num_key = np.random.random(1)
-
-                if selected_index is None:
-                    bar_title = st.markdown(f"Current data size {data.index.max()}")
-
-                    # volume selector;
-                    selected_index = st.number_input(
-                        "Select block",
-                        key="num_key",
-                        value=st.session_state.current_index,
-                        min_value=0,
-                        max_value=data.index.max()
-                    )
-
-                    # toggle acquisition mode;
-                    acquisition_mode = st.toggle("Acquisition Mode", value=True)
-                    if acquisition_mode:
-                        st.session_state.current_index = data.index.max()
-                    else:
-                        st.session_state.current_index = selected_index
 
         except (ValueError, KeyError) as e:
             continue
@@ -268,3 +245,32 @@ while True:
                 st.plotly_chart(motion_trs)
             else:
                 st.markdown("Waiting for motion correction output...")
+
+    # set-up sidebar;
+    with st.sidebar:
+        if has_rerun is True:
+            # print total number of epochs;
+            st.markdown(f"Current data size {data.index.max()}")
+
+            # toggle acquisition mode;
+            st.toggle("Acquisition Mode",
+                      key="acquisition_state",
+                      value=True
+                      )
+
+            if st.session_state.acquisition_state:
+                st.session_state.current_index = data.index.max()
+            else:
+                # volume selector;
+                st.session_state.current_index = st.number_input(
+                    "current_index",
+                    value=data.index.max(),
+                    min_value=0,
+                    max_value=data.index.max()
+                )
+
+            # set sidebar state;
+            has_rerun = False
+
+            # for debugging purposes only;
+            st.write(st.session_state)

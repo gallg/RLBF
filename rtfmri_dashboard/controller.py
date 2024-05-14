@@ -11,7 +11,7 @@ import sys
 import os
 
 
-def initialize_realtime(environment, standard, roi_mask, nuisance_mask, scan_dir, out_dir):
+def initialize_realtime(environment, standard, roi_mask, scan_dir, out_dir):
     # save template and mask paths:
     path_to_template = standard
     path_to_mask = roi_mask
@@ -23,9 +23,6 @@ def initialize_realtime(environment, standard, roi_mask, nuisance_mask, scan_dir
     transform_matrix = join(out_dir, "fwdtransforms.mat")
     preprocessed_data = join(out_dir, "preprocessed.pkl")
     custom_mask = join(out_dir, "custom_mask.nii.gz")
-
-    if nuisance_mask is not None:
-        nuisance_mask, _ = get_image(nuisance_mask, affine=False, to_ants=True)
 
     prompt = input("run preprocessing? [yes/no] ")
     if prompt == "yes":
@@ -55,13 +52,13 @@ def initialize_realtime(environment, standard, roi_mask, nuisance_mask, scan_dir
     else:
         if not os.path.isfile(preprocessed_data):
             raise Exception("No preprocessed data, please run preprocessing")
-        elif not os.path.isfile("/tmp/reference.nii.gz"):
+        elif not os.path.isfile("/mnt/fmritemp/reference.nii.gz"):
             raise Exception("No reference volume found, please run preprocessing")
         else:
             print("preprocessed data found, using old preprocessing data!")
             first_vol, standard, roi_mask, affine_matrix, transform_matrix = load_preprocessed_data(preprocessed_data)
 
-    return real_time_env, first_vol, standard, roi_mask, nuisance_mask, affine_matrix, transform_matrix
+    return real_time_env, first_vol, standard, roi_mask, affine_matrix, transform_matrix
 
 
 def run_acquisition(
@@ -70,7 +67,6 @@ def run_acquisition(
         real_time_env,
         standard,
         roi_mask,
-        nuisance_mask,
         affine_matrix,
         transformation_matrix
 ):
@@ -109,8 +105,7 @@ def run_acquisition(
             standard,
             roi_mask,
             affine_matrix,
-            transformation_matrix,
-            nuisance_mask=nuisance_mask
+            transformation_matrix
         )
 
         if current_volume is not None:
@@ -121,23 +116,21 @@ def run_acquisition(
         current_volume = None
 
 
-# ToDo: add noise plotting to the new dashboard;
 # ToDo: handle case in which motion threshold skips the data for the first volume;
-# ToDo: add visualization of older blocks to checkerboard;
 # ToDo: change viz for hypothesis function hrf * beta + b0;
 # ToDo: test different reward functions;
 # ToDo: test the program with the new changes;
+# ToDo: fix rendering;
 
 if __name__ == "__main__":
     output_dir = "/home/giuseppe/rtfmri/rtfmri_dashboard/log"
     scanner_dir = "/home/giuseppe/rtfmri/rtfmri_dashboard/data_in/scandir"
     reset_log(join(output_dir, "log.json"))
 
-    env, path_to_first_vol, template, mask, noise_mask, affine, transformation = initialize_realtime(
+    env, path_to_first_vol, template, mask, affine, transformation = initialize_realtime(
         RealTimeEnv,
         "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/MNI152_T1_2mm_brain.nii.gz",
         "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/BA17_mask_fix.nii.gz",
-        None,  # "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/CSF_mask_2mm.nii.gz",
         scanner_dir,
         output_dir
     )
@@ -153,7 +146,6 @@ if __name__ == "__main__":
             env,
             template,
             mask,
-            noise_mask,
             affine,
             transformation
         )

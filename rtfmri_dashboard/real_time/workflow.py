@@ -1,13 +1,9 @@
-import ants
-
 from rtfmri_dashboard.agents.utils import generate_gaussian_kernel, discretize_observation
-from rtfmri_dashboard.real_time.utils import pad_array, inverse_roll, clean_temporary_data
+from rtfmri_dashboard.real_time.utils import pad_array, clean_temporary_data
 from rtfmri_dashboard.agents.soft_q_learner import SoftQAgent, create_bins
 from rtfmri_dashboard.envs.checkerboard import CheckerBoardEnv
 from rtfmri_dashboard.agents.utils import convergence
 from rtfmri_dashboard.real_time.preprocessing import *
-from scipy.special import expit
-from scipy.ndimage import gaussian_filter1d
 from posixpath import join
 
 import rtfmri_dashboard.config as config
@@ -31,15 +27,15 @@ class RealTimeEnv:
         self.hrf = None
         self.serializable_hrf = None
         self.output_dir = "../log"
-        self.reference = "/tmp/reference.nii.gz"
+        self.reference = "/mnt/fmritemp/reference.nii.gz"
 
         # store real-time data;
-        self.noise = []
         self.temporary_data = []
         self.real_time_data = []
-        self.real_time_noise = []
         self.motion = np.array([0, 0, 0, 0, 0, 0])
         self.motion_threshold = []
+        self.alpha = 0
+        self.beta = 1
 
         # initialize environment;
         self.convergence_window_size = 0
@@ -116,7 +112,7 @@ class RealTimeEnv:
             self.observation[0],
             self.observation[1]
         ])
-        state.tofile(join(self.output_dir, "state.bin"))
+        state.tofile("/mnt/fmritemp/state.bin")
 
         # convergence parameters;
         self.convergence_window_size = config.conv_window_size
@@ -132,63 +128,29 @@ class RealTimeEnv:
         )
         self.serializable_hrf = json.dumps(self.hrf.reshape(1, -1).tolist()[0])
 
-    def update_rendering(self):
+    def calculate_reward(self):
+        reward, best_features, self.alpha, self.beta = run_glm(
+            np.array(self.temporary_data),
+            self.hrf.reshape(-1, 1)
+        )
+        self.real_time_data.extend(np.mean(np.array(self.temporary_data)[:, best_features], axis=1))
+        return reward
+
+    def update_state(self):
         # render checkerboard if resting state finished;
         self.resting_state = (True, False)[1 <= self.collected_volumes <= config.block_size]
 
-        # save current state for rendering;
-        if self.resting_state and self.volume_counter > config.block_size:
-            state = np.array([
-                self.resting_state,
-                self.observation[0],
-                self.observation[1]
-            ])
-            state.tofile(join(self.output_dir, "state.bin"))
-
-    def roll_over_data(self, data):
-        overlap = (config.overlap_samples, 0)[self.current_epoch == 1]
-        current_data = inverse_roll(
-            data,
-            overlap,
-            self.epoch_duration
-        )
-        return np.array(current_data)
-
-    def calculate_reward(self):
-        self.real_time_data.extend(np.median(self.temporary_data, axis=1))
-        # self.real_time_data = gaussian_filter1d(self.real_time_data, sigma=2).tolist()
-
-        # save standardized nuisance regressor;
-        if len(self.noise) > 0:
-            noise_mu, noise_mean, noise_std = standardize_signal(self.noise, axis=1)
-            self.real_time_noise.extend((noise_mu - noise_mean) / noise_std)
-
-        # roll over data arrays;
-        current_data = self.roll_over_data(self.real_time_data)
-        current_noise = self.roll_over_data(self.real_time_noise)
-
-        reward = run_glm(
-            current_data.reshape(-1, 1),
-            self.hrf.reshape(-1, 1),
-            current_noise.reshape(-1, 1)
-        )
-
-        # adjust reward using sigmoid function;
-        # reward = expit(reward)
-
-        return reward
-
-    def run_realtime(self, volume, template, mask, affine, transformation=None, nuisance_mask=None):
+    def run_realtime(self, volume, template, mask, affine, transformation=None):
         # render only with high contrast & frequency;
         if config.render_only and volume is not None:
             self.observation = np.array([1.0, 0.9])
 
-        # update the environment rendering;
-        self.update_rendering()
-
         if volume is not None:
             self.volume_counter += 1
             print("Volume: ", self.volume_counter)
+
+            # update the environment rendering;
+            self.update_state()
 
             # align volume;
             aligned, _ = run_preprocessing(
@@ -226,12 +188,9 @@ class RealTimeEnv:
             # acquire data, skip collecting the first resting block;
             if self.current_epoch > 1 or self.volume_counter > config.rest_size:
                 self.collected_volumes += 1
-                data, noise = get_mask_data(volume, mask, nuisance_mask=nuisance_mask)
+                data = get_mask_data(volume, mask)
 
                 self.temporary_data.append(pad_array(data, self.temporary_data))
-                if noise is not None:
-                    self.noise.append(noise)
-
                 self.motion = np.vstack([self.motion, motion])
 
             # if block has finished, make environment step;
@@ -296,26 +255,27 @@ class RealTimeEnv:
                 self.reset_realtime()
 
     def log_realtime(self, last_action, next_action, motion):
-        current_data = self.real_time_data
+        # save current state for rendering;
+        state = np.array([
+            self.observation[0],
+            self.observation[1]
+        ])
+        state.tofile("/mnt/fmritemp/state.bin")
 
-        # standardize signal for visualization purposes;
+        # standardize fMRI data for visualization;
+        hrf_duration = config.rest_size + config.block_size
+
         if len(self.real_time_data) > 0:
-            current_data = standardize_signal(self.temporary_data, axis=1)
-
-        # get correct data and noise samples;
-        current_noise = self.roll_over_data(self.real_time_noise)
-        current_data = self.roll_over_data(current_data)
+            current_data = standardize_signal(self.real_time_data[-hrf_duration:]).tolist()
+        else:
+            current_data = self.real_time_data
 
         # serialize and log them in the json file;
         serializable_reward = json.dumps(self.reward)
-        serializable_data = json.dumps(current_data.tolist())
-        serializable_noise = json.dumps(current_noise.tolist())
+        serializable_data = json.dumps(current_data)
         serializable_table = json.dumps(self.agent.q_table.tolist())
         serializable_convergence = json.dumps(self.convergence)
         serializable_motion_threshold = json.dumps(self.motion_threshold)
-
-        # test smoothed data;
-        # serializable_data = json.dumps(gaussian_filter1d(current_data, sigma=2).tolist())
 
         # motion parameters;
         if self.current_epoch == 1:
@@ -344,7 +304,6 @@ class RealTimeEnv:
             "epoch": self.current_epoch,
             "hrf": self.serializable_hrf,
             "fmri_data": serializable_data,
-            "noise": serializable_noise,
             "convergence": serializable_convergence,
             "q_table": serializable_table,
             "rotation x": rot_x,
@@ -374,7 +333,6 @@ class RealTimeEnv:
 
     def reset_realtime(self):
         self.temporary_data = []
-        self.noise = []
         self.motion = np.array([0, 0, 0, 0, 0, 0])
         self.resting_state = True
         self.collected_volumes = 0
@@ -384,5 +342,4 @@ class RealTimeEnv:
     def stop_realtime(self):
         # save acquired data and close environment;
         np.save(join(self.output_dir, "data.npy"), self.real_time_data)
-        np.save(join(self.output_dir, "noise.npy"), self.real_time_noise)
         clean_temporary_data()
