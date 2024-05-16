@@ -1,5 +1,6 @@
 import time
 
+from rtfmri_dashboard.real_time.utils import StateManager
 from rtfmri_dashboard import config
 from posixpath import join
 import numpy as np
@@ -30,6 +31,11 @@ class CheckerBoardEnv:
         self.t_start = 0
         self.timing = np.array([])
         self.last_state = True
+
+        # agent actions management variables;
+        self.state_manager = StateManager("/mnt/fmritemp/state.bin")
+        self.log_scale = np.logspace(-0.7, np.log10(1.1), 10) - 0.1
+        self.log_scale = np.hstack(([0], self.log_scale))
 
         if self.render_mode == "human":
             pr.init_window(self.screen_width, self.screen_height, "Checkerboard Environment")
@@ -66,17 +72,18 @@ class CheckerBoardEnv:
 
         if self.n_vols > config.rest_size:
             self.resting_state = False
+            state = self.state_manager.read_state()
+
+            if len(state) > 0:
+                self.contrast = self.log_scale[
+                    int(round(state[0], 1) * config.num_bins_per_observation)
+                ]
+                self.frequency = state[1]
 
         if self.n_vols > config.rest_size + config.block_size:
             self.contrast, self.frequency = (0, 0)
             self.resting_state = True
             self.n_vols = 1
-
-        if os.path.isfile(join(output_dir, "state.bin")):
-            state = np.fromfile("/mnt/fmritemp/state.bin")
-
-            if len(state) > 0 and not self.resting_state:
-                (_, self.contrast, self.frequency) = state
 
     def debug_time(self, t_end):
         if self.resting_state != self.last_state:
@@ -133,6 +140,6 @@ class CheckerBoardEnv:
         elif pr.is_key_pressed(pr.KEY_F11):
             pr.toggle_borderless_windowed()
 
-    @staticmethod
-    def close():
+    def close(self):
+        self.state_manager.close()
         pr.close_window()

@@ -1,5 +1,5 @@
+from rtfmri_dashboard.real_time.utils import pad_array, clean_temporary_data, StateManager
 from rtfmri_dashboard.agents.utils import generate_gaussian_kernel, discretize_observation
-from rtfmri_dashboard.real_time.utils import pad_array, clean_temporary_data
 from rtfmri_dashboard.agents.soft_q_learner import SoftQAgent, create_bins
 from rtfmri_dashboard.envs.checkerboard import CheckerBoardEnv
 from rtfmri_dashboard.agents.utils import convergence
@@ -44,6 +44,7 @@ class RealTimeEnv:
         self.observation = None
         self.current_epoch = 1
         self.previous_state = None
+        self.state_manager = None
         self.agent = None
         self.bins = None
         self.reward = []
@@ -107,12 +108,12 @@ class RealTimeEnv:
         )
 
         # save initial state;
-        state = np.array([
-            self.resting_state,
+        self.state_manager = StateManager("/mnt/fmritemp/state.bin")
+        state = str([
             self.observation[0],
             self.observation[1]
         ])
-        state.tofile("/mnt/fmritemp/state.bin")
+        self.state_manager.write_state(state)
 
         # convergence parameters;
         self.convergence_window_size = config.conv_window_size
@@ -149,7 +150,7 @@ class RealTimeEnv:
             self.volume_counter += 1
             print("Volume: ", self.volume_counter)
 
-            # update the environment rendering;
+            # update the environment state;
             self.update_state()
 
             # align volume;
@@ -164,14 +165,14 @@ class RealTimeEnv:
             volume, motion = motion_correction(
                 aligned,
                 self.reference,
-                to_ants=False
+                to_ants=True
             )
 
             # harmonize data to avoid effects of global signal;
-            volume = rank_harmonization(
-                volume,
-                to_ants=True
-            )
+            # volume = rank_harmonization(
+            #     volume,
+            #     to_ants=True
+            # )
 
             # plot new, preprocessed, volume;
             if not (self.plot_volume and self.plot_volume.is_alive()):
@@ -229,6 +230,15 @@ class RealTimeEnv:
 
                 if not config.render_only:
                     self.observation = self.agent.soft_q_action_selection()
+
+                    # save current state for rendering;
+                    state = str([
+                        self.observation[0],
+                        self.observation[1]
+                    ])
+                    self.state_manager.write_state(state)
+
+                    # update action log;
                     self.action_log.append(self.observation)
 
                 next_state = discretize_observation(self.observation, self.bins)
@@ -255,13 +265,6 @@ class RealTimeEnv:
                 self.reset_realtime()
 
     def log_realtime(self, last_action, next_action, motion):
-        # save current state for rendering;
-        state = np.array([
-            self.observation[0],
-            self.observation[1]
-        ])
-        state.tofile("/mnt/fmritemp/state.bin")
-
         # standardize fMRI data for visualization;
         hrf_duration = config.rest_size + config.block_size
 
@@ -342,4 +345,5 @@ class RealTimeEnv:
     def stop_realtime(self):
         # save acquired data and close environment;
         np.save(join(self.output_dir, "data.npy"), self.real_time_data)
+        self.state_manager.close()
         clean_temporary_data()

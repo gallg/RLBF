@@ -1,6 +1,9 @@
 from functools import partial
+from ast import literal_eval
 from posixpath import join
 import numpy as np
+import threading
+import datetime
 import pydicom
 import hashlib
 import shutil
@@ -8,6 +11,32 @@ import time
 import json
 import re
 import os
+
+
+class StateManager:
+    def __init__(self, filename):
+        self.file = open(filename, "a+")
+        self.lock = threading.Lock()
+
+    def write_state(self, state):
+        with self.lock:
+            self.file.seek(0)
+            self.file.truncate()
+            self.file.write(state)
+            self.file.flush()
+
+    def read_state(self):
+        with self.lock:
+            self.file.seek(0)
+            data = self.file.read()
+            if data in ["", []]:
+                return None
+            else:
+                return np.array(literal_eval(data), dtype=float)
+
+    def close(self):
+        if self.file.closed:
+            self.file.close()
 
 
 def check_file_integrity(filename):

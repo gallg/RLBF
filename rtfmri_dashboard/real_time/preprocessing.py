@@ -142,8 +142,13 @@ def motion_correction(volume, reference, to_ants=False):
     if to_ants:
         corrected_volume = ants.from_nibabel(corrected_volume)
 
-    # temp data is not cleaned here, nibabel will lazyload the data later;
     motion = get_motion_params(join("/mnt/fmritemp", output_file + ".par"))
+
+    # temp data is cleaned here;
+    os.remove(input_file)
+    os.remove(output_file)
+    os.remove(output_file + ".par")
+
     return corrected_volume, motion
 
 
