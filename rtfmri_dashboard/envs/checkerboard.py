@@ -34,8 +34,8 @@ class CheckerBoardEnv:
 
         # agent actions management variables;
         self.state_manager = StateManager("/mnt/fmritemp/state.bin")
-        self.log_scale = np.logspace(-0.7, np.log10(1.1), 10) - 0.1
-        self.log_scale = np.hstack(([0], self.log_scale))
+        self.log_scale = np.logspace(-0.7, np.log10(1.1), 11) - 0.1
+        self.log_scale[0] = 0
 
         if self.render_mode == "human":
             pr.init_window(self.screen_width, self.screen_height, "Checkerboard Environment")

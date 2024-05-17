@@ -3,7 +3,6 @@ from ast import literal_eval
 from posixpath import join
 import numpy as np
 import threading
-import datetime
 import pydicom
 import hashlib
 import shutil

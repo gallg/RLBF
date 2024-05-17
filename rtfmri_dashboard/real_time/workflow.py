@@ -150,7 +150,7 @@ class RealTimeEnv:
             self.volume_counter += 1
             print("Volume: ", self.volume_counter)
 
-            # update the environment state;
+            # update the environment resting state;
             self.update_state()
 
             # align volume;
@@ -161,18 +161,13 @@ class RealTimeEnv:
                 transformation
             )
 
-            # motion correction;
-            volume, motion = motion_correction(
+            # motion correction and harmonization;
+            volume, motion = volume_correction(
                 aligned,
                 self.reference,
-                to_ants=True
+                to_ants=True,
+                harmonize=True
             )
-
-            # harmonize data to avoid effects of global signal;
-            # volume = rank_harmonization(
-            #     volume,
-            #     to_ants=True
-            # )
 
             # plot new, preprocessed, volume;
             if not (self.plot_volume and self.plot_volume.is_alive()):

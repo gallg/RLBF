@@ -117,14 +117,7 @@ def run_acquisition(
 
 
 # ToDo: handle case in which motion threshold skips the data for the first volume;
-# ToDo: change viz for hypothesis function hrf * beta + b0;
-# ToDo: test different reward functions;
 # ToDo: test the program with the new changes;
-# ToDo: optimize by moving one-time calculations at initialization;
-# ToDo: test performance with ramdisk;
-
-# ToDo: read and write agent's actions in ramdisk on an open file;
-# https://stackoverflow.com/questions/6648493/how-to-open-a-file-for-both-reading-and-writing
 
 if __name__ == "__main__":
     output_dir = "/home/giuseppe/rtfmri/rtfmri_dashboard/log"

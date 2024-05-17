@@ -129,7 +129,7 @@ def get_motion_params(filename):
     return np.array(params)
 
 
-def motion_correction(volume, reference, to_ants=False):
+def volume_correction(volume, reference, to_ants=False, harmonize=False):
     filein, input_file = mkstemp(dir="/mnt/fmritemp", suffix=".nii.gz")
     fileout, output_file = mkstemp(dir="/mnt/fmritemp", suffix=".nii.gz")
     volume.to_filename(input_file)
@@ -138,6 +138,15 @@ def motion_correction(volume, reference, to_ants=False):
     os.close(fileout)
 
     corrected_volume = nib.load(output_file)
+
+    if harmonize:
+        vol_data = corrected_volume.get_fdata()
+        vol_shape = corrected_volume.shape
+        vol_affine = corrected_volume.affine
+
+        # use rank harmonization to avoid picking global signal change;
+        corrected_volume = rankdata(vol_data).reshape(vol_shape)
+        corrected_volume = nib.Nifti1Image(corrected_volume, vol_affine)
 
     if to_ants:
         corrected_volume = ants.from_nibabel(corrected_volume)
@@ -150,17 +159,6 @@ def motion_correction(volume, reference, to_ants=False):
     os.remove(output_file + ".par")
 
     return corrected_volume, motion
-
-
-def rank_harmonization(volume, to_ants=False):
-    data, vol_size, affine = (volume. get_fdata(), volume.shape, volume.affine)
-    data = rankdata(data).reshape(vol_size)
-    vol = nib.Nifti1Image(data, affine)
-
-    if to_ants:
-        vol = ants.from_nibabel(vol)
-
-    return vol
 
 
 def run_preprocessing(volume, template, affine, transformation=None, transform_type="SyNBold", preprocessing=False):
