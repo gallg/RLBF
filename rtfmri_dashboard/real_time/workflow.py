@@ -111,7 +111,8 @@ class RealTimeEnv:
         self.state_manager = StateManager("/mnt/fmritemp/state.bin")
         state = str([
             self.observation[0],
-            self.observation[1]
+            self.observation[1],
+            self.current_epoch
         ])
         self.state_manager.write_state(state)
 
@@ -229,7 +230,8 @@ class RealTimeEnv:
                     # save current state for rendering;
                     state = str([
                         self.observation[0],
-                        self.observation[1]
+                        self.observation[1],
+                        self.current_epoch
                     ])
                     self.state_manager.write_state(state)
 

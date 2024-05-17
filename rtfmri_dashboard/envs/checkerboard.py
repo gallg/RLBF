@@ -31,6 +31,7 @@ class CheckerBoardEnv:
         self.t_start = 0
         self.timing = np.array([])
         self.last_state = True
+        self.last_epoch = 0
 
         # agent actions management variables;
         self.state_manager = StateManager("/mnt/fmritemp/state.bin")
@@ -63,22 +64,28 @@ class CheckerBoardEnv:
             self.total_vols += 1
 
             # debug time;
-            t_end = time.perf_counter() - self.t_start
-            self.debug_time(t_end)
-            np.save(join(output_dir, "timing.npy"), self.timing)
+            # t_end = time.perf_counter() - self.t_start
+            # self.debug_time(t_end)
+            # np.save(join(output_dir, "timing.npy"), self.timing)
 
         if self.total_vols == 1:
             self.t_start = time.perf_counter()
 
         if self.n_vols > config.rest_size:
-            self.resting_state = False
             state = self.state_manager.read_state()
 
             if len(state) > 0:
-                self.contrast = self.log_scale[
-                    int(round(state[0], 1) * config.num_bins_per_observation)
-                ]
-                self.frequency = state[1]
+                current_epoch = state[2]
+
+                # check whether the state file has been updated,
+                # then update rendering;
+                if current_epoch > self.last_epoch:
+                    self.resting_state = False
+                    self.contrast = self.log_scale[
+                        int(round(state[0], 1) * config.num_bins_per_observation)
+                    ]
+                    self.frequency = state[1]
+                    self.last_epoch = current_epoch
 
         if self.n_vols > config.rest_size + config.block_size:
             self.contrast, self.frequency = (0, 0)
