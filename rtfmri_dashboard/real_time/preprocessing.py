@@ -318,4 +318,4 @@ def run_glm(y, x):
     alpha = np.mean(model.params[0][best_features])
     reward = (mean_beta / alpha) * 100
 
-    return reward, best_features, alpha, mean_beta
+    return reward, best_features

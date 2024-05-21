@@ -116,9 +116,9 @@ def run_acquisition(
         current_volume = None
 
 
+# ToDo: fix visualization of motion rotation/translation, not appearing on dashboard in the first epoch;
 # ToDo: handle case in which motion threshold skips the data for the first volume;
 # ToDo: adjust Hypothesis function to rendering delay;
-# ToDo: check and remove unused parameters from setting.conf;
 
 if __name__ == "__main__":
     output_dir = "/home/giuseppe/rtfmri/rtfmri_dashboard/log"

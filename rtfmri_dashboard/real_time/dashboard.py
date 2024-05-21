@@ -162,9 +162,18 @@ while True:
 
         # show parameters;
         with right_column:
+            if reward is None or len(reward) == 0:
+                reward_log = 0
+            else:
+                reward_log = reward[-1]
+
             st.markdown("##### Parameters")
             st.markdown(
-                f"Contrast: {contrast} <br> Frequency: {frequency} <br> Resting State: {resting_state} <br> Epoch: {epoch}",
+                f"Contrast: {contrast} <br> "
+                f"Frequency: {frequency} <br> "
+                f"Resting State: {resting_state} <br> "
+                f"Epoch: {epoch} <br> "
+                f"Reward: {reward_log}",
                 unsafe_allow_html=True
             )
 
@@ -197,12 +206,9 @@ while True:
         # Plot Real-Time Data;
         with st.container():
             st.markdown("##### Real-Time Data")
-            if fmridata is None:
+            if fmridata is None or len(fmridata) == 0:
                 fmridata = np.zeros(len(hrf))
-            if epoch > 1:
-                mridata = {"Hypothesis Function": hrf, "fMRI data": fmridata}
-            else:
-                mridata = {"Hypothesis Function": hrf}
+            mridata = {"Hypothesis Function": hrf, "fMRI data": fmridata}
             mridata = px.line(mridata)
             st.plotly_chart(mridata, use_container_width=True)
             st.markdown("----")
@@ -273,4 +279,4 @@ while True:
             has_rerun = False
 
             # for debugging purposes only;
-            st.write(st.session_state)
+            # st.write(st.session_state)

@@ -57,7 +57,7 @@ class CheckerBoardEnv:
         self.contrast, self.frequency = observation
         return observation
 
-    def step(self, output_dir):
+    def step(self):
         if len(os.listdir(self.scandir)) > self.t0:
             self.t0 += 1
             self.n_vols += 1
@@ -74,7 +74,7 @@ class CheckerBoardEnv:
         if self.n_vols > config.rest_size:
             state = self.state_manager.read_state()
 
-            if len(state) > 0:
+            if state is not None and len(state) > 0:
                 current_epoch = state[2]
 
                 # check whether the state file has been updated,

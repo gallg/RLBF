@@ -34,8 +34,6 @@ class RealTimeEnv:
         self.real_time_data = []
         self.motion = np.array([0, 0, 0, 0, 0, 0])
         self.motion_threshold = []
-        self.alpha = 0
-        self.beta = 1
 
         # initialize environment;
         self.convergence_window_size = 0
@@ -131,7 +129,7 @@ class RealTimeEnv:
         self.serializable_hrf = json.dumps(self.hrf.reshape(1, -1).tolist()[0])
 
     def calculate_reward(self):
-        reward, best_features, self.alpha, self.beta = run_glm(
+        reward, best_features = run_glm(
             np.array(self.temporary_data),
             self.hrf.reshape(-1, 1)
         )
