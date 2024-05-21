@@ -1,79 +1,68 @@
-from rtfmri_dashboard.agents.utils import generate_gaussian_kernel, discretize_observation, create_bins
-from rtfmri_dashboard.agents.soft_q_learner import SoftQAgent
-from rtfmri_dashboard.real_time.utils import plot_image
+from rtfmri_dashboard.real_time.utils import pad_array, clean_temporary_data, StateManager
+from rtfmri_dashboard.agents.utils import generate_gaussian_kernel, discretize_observation
+from rtfmri_dashboard.agents.soft_q_learner import SoftQAgent, create_bins
+from rtfmri_dashboard.envs.checkerboard import CheckerBoardEnv
+from rtfmri_dashboard.agents.utils import convergence
 from rtfmri_dashboard.real_time.preprocessing import *
 from posixpath import join
 
 import rtfmri_dashboard.config as config
-import ants.core.ants_image
-import gymnasium as gym
-import checkerboard_env
 import numpy as np
+import threading
 import json
 
 
-def load_environment(render_mode=None):
-    board = "../checkerboard_env/assets/checkerboard.png"
-    cross = "../checkerboard_env/assets/cross.png"
-
-    env = gym.make(
-        "checkerboard-v0",
-        render_mode=render_mode,
-        checkerboard=board,
-        cross=cross
-    )
-    return env
-
-
-def run_preprocessing(volume, template, affine, transformation=None):
-    volume = reorient_volume(volume, affine, to_ants=True)
-
-    if transformation is None:
-        transformation = ants_registration(volume, template)
-
-    volume = ants_transform(volume, template, transformation)
-    return volume, transformation
-
-
 class RealTimeEnv:
-    def __init__(self, render_mode=None):
-        # load environment;
-        self.environment = load_environment(render_mode)
+    def __init__(self):
+        # load an instance of the environment for the agent;
+        self.environment = CheckerBoardEnv()
 
-        # settings for real-time processing; #
+        # settings for real-time processing;
         self.mask = None
         self.volume_counter = 0
+        self.collected_volumes = 0
         self.block_has_finished = False
         self.resting_state = True
         self.epoch_duration = 0
         self.hrf = None
         self.serializable_hrf = None
-        self.output_dir = "../log/"
+        self.output_dir = "../log"
+        self.reference = "/mnt/fmritemp/reference.nii.gz"
 
         # store real-time data;
-        self.temporary_data = np.array([])
-        self.real_time_data = np.array([])
+        self.temporary_data = []
+        self.real_time_data = []
+        self.motion = np.array([0, 0, 0, 0, 0, 0])
+        self.motion_threshold = []
 
         # initialize environment;
-        self.last_observation = None
+        self.convergence_window_size = 0
+        self.convergence = []
+        self.action_log = []
+        self.observation = None
         self.current_epoch = 1
         self.previous_state = None
+        self.state_manager = None
         self.agent = None
         self.bins = None
+        self.reward = []
         self.initialize_env()
         self.initialize_hrf()
+
+        self.logger = None
+        self.plot_volume = None
 
         # initialize log;
         self.log_realtime(
             [0, 0],
-            0,
-            self.epoch_duration
+            None,
+            self.motion
         )
 
         self.serializable_hrf = []
 
     def initialize_env(self):
-        self.last_observation, _ = self.environment.reset()
+        self.observation = self.environment.reset()
 
         parameters = {
             "learning_rate": config.learning_rate,
@@ -81,7 +70,8 @@ class RealTimeEnv:
             "min_temperature": config.min_temperature,
             "max_temperature": config.max_temperature,
             "reduce_temperature": config.reduce_temperature,
-            "decay_rate": config.decay_rate
+            "decay_rate": config.decay_rate,
+            "num_bins_per_obs": config.num_bins_per_observation
         }
 
         # generate bins;
@@ -92,11 +82,9 @@ class RealTimeEnv:
             config.num_bins_per_observation,
             config.num_bins_per_observation
         )
-        q_table = np.random.normal(
-            config.q_table_noise_mean,
-            scale=config.q_table_noise_sigma,
-            size=q_table_shape
-        )
+
+        # Initialize Q-table to config value to allow agent punishment;
+        q_table = np.ones(q_table_shape) * config.q_table_init
 
         # Generate RBF kernel;
         kernel = generate_gaussian_kernel(
@@ -104,9 +92,10 @@ class RealTimeEnv:
             config.kernel_sigma
         )
 
-        # Load Soft-Q agent;
+        # Load Soft-Q agent to get its functionalities;
+        # The agent itself is not fitted;
         self.previous_state = discretize_observation(
-            self.last_observation,
+            self.observation,
             self.bins
         )
         self.agent = SoftQAgent(
@@ -116,10 +105,22 @@ class RealTimeEnv:
             **parameters
         )
 
+        # save initial state;
+        self.state_manager = StateManager("/mnt/fmritemp/state.bin")
+        state = str([
+            self.observation[0],
+            self.observation[1],
+            self.current_epoch
+        ])
+        self.state_manager.write_state(state)
+
+        # convergence parameters;
+        self.convergence_window_size = config.conv_window_size
+
     def initialize_hrf(self):
         self.epoch_duration = config.block_size + config.rest_size
         self.hrf = generate_hrf_regressor(
-            time_length=self.epoch_duration + config.hrf_stimulus_onset,
+            time_length=self.epoch_duration,
             duration=config.block_size,
             onset=config.hrf_stimulus_onset,
             amplitude=config.hrf_amplitude,
@@ -127,92 +128,115 @@ class RealTimeEnv:
         )
         self.serializable_hrf = json.dumps(self.hrf.reshape(1, -1).tolist()[0])
 
-    def update_rendering(self):
-        # render checkerboard if resting state finished;
-        if self.volume_counter > config.rest_size:
-            self.resting_state = False
-
-        _ = self.environment.step(
-            [0, 0] if self.resting_state
-            else self.last_observation
-        )
-        self.environment.render()
-
-    def get_mask_data(self, volume, mask):
-        if not isinstance(mask, ants.core.ants_image.ANTsImage):
-            self.mask = ants.image_read(mask)
-
-        data = ants.utils.mask_image(volume, mask).numpy()
-        return data[np.nonzero(data)]
-
     def calculate_reward(self):
-        hrf_duration = self.epoch_duration + config.hrf_stimulus_onset \
-            if config.hrf_stimulus_onset > 0 else self.epoch_duration
-
-        mu = np.mean(self.temporary_data, axis=1)
-        data_mean, data_std = np.mean(mu), np.std(mu)
-
-        # save standardized data;
-        standardized_data = (mu - data_mean) / data_std
-        self.real_time_data = standardized_data if self.real_time_data.shape[0] == 0 \
-            else np.hstack([self.real_time_data, standardized_data])
-
-        reward = run_glm(
-            self.real_time_data[-hrf_duration:].reshape(-1, 1),
+        reward, best_features = run_glm(
+            np.array(self.temporary_data),
             self.hrf.reshape(-1, 1)
         )
-        return reward, hrf_duration
+        self.real_time_data.extend(np.mean(np.array(self.temporary_data)[:, best_features], axis=1))
+        return reward
+
+    def update_state(self):
+        # render checkerboard if resting state finished;
+        self.resting_state = (True, False)[1 <= self.collected_volumes <= config.block_size]
 
     def run_realtime(self, volume, template, mask, affine, transformation=None):
-
-        # render & update the environment;
-        self.update_rendering()
+        # render only with high contrast & frequency;
+        if config.render_only and volume is not None:
+            self.observation = np.array([1.0, 0.9])
 
         if volume is not None:
             self.volume_counter += 1
+            print("Volume: ", self.volume_counter)
 
-            # preprocess volume;
-            volume, transformation = run_preprocessing(
+            # update the environment resting state;
+            self.update_state()
+
+            # align volume;
+            aligned, _ = run_preprocessing(
                 volume,
                 template,
                 affine,
                 transformation
             )
 
-            # acquire data;
-            data = self.get_mask_data(volume, mask)
-
-            # plot new, preprocessed, volume;
-            plot_image(
-                volume,
-                mask,
-                reorient=False,
-                filename=join(self.output_dir, "volume.png")
+            # motion correction and harmonization;
+            volume, motion = volume_correction(
+                aligned,
+                self.reference,
+                to_ants=True,
+                harmonize=True
             )
 
-            self.temporary_data = data if self.temporary_data.shape[0] == 0 \
-                else np.vstack([self.temporary_data, data])
+            # plot new, preprocessed, volume;
+            if not (self.plot_volume and self.plot_volume.is_alive()):
+                self.plot_volume = threading.Thread(
+                    target=plot_image, args=(
+                        volume,
+                        mask,
+                        False,
+                        join(self.output_dir, "volume.png")
+                    )
+                )
+                self.plot_volume.start()
+
+            # acquire data, skip collecting the first resting block;
+            if self.current_epoch > 1 or self.volume_counter > config.rest_size:
+                self.collected_volumes += 1
+                data = get_mask_data(volume, mask)
+
+                self.temporary_data.append(pad_array(data, self.temporary_data))
+                self.motion = np.vstack([self.motion, motion])
 
             # if block has finished, make environment step;
-            if self.volume_counter == self.epoch_duration:
-                action = self.agent.soft_q_action_selection()
+            if self.collected_volumes == self.epoch_duration:
+                last_observation = self.observation
 
-                (next_state,
-                 _,
-                 terminated,
-                 truncated,
-                 info) = self.environment.step(action)
+                # Calculate convergence;
+                if self.current_epoch > self.convergence_window_size:
+                    self.convergence.append(
+                        convergence(
+                            self.action_log,
+                            self.convergence_window_size
+                        )
+                    )
 
-                # update last observation;
-                self.last_observation = next_state
+                # Check motion threshold;
+                skip_q_table_update, mc_ratio = check_motion_threshold(
+                    self.motion,
+                    displacement_threshold=config.motion_threshold,
+                    ratio_of_displaced_volumes=config.motion_max_ratio
+                )
+                # collect ratio of volumes with high displacement for visualization;
+                self.motion_threshold.append(mc_ratio)
 
                 # get old q-value;
                 old_q_value = self.agent.q_table[self.previous_state]
-                next_state = discretize_observation(next_state, self.bins)
-                reward, hrf_duration = self.calculate_reward()
 
-                # compute next q-value and update q-table;
-                self.agent.q_table = self.agent.update_q_table(reward, next_state, old_q_value)
+                # compute reward and update q-table (if motion doesn't exceed the threshold);
+                if not skip_q_table_update:
+                    reward = self.calculate_reward()
+                    self.reward.append(reward)
+                    self.agent.q_table = self.agent.update_q_table(reward, self.previous_state, old_q_value)
+                else:
+                    reward = self.reward[-1] if self.current_epoch > 1 else 0
+                    self.reward.append(reward)
+
+                if not config.render_only:
+                    self.observation = self.agent.soft_q_action_selection()
+
+                    # save current state for rendering;
+                    state = str([
+                        self.observation[0],
+                        self.observation[1],
+                        self.current_epoch
+                    ])
+                    self.state_manager.write_state(state)
+
+                    # update action log;
+                    self.action_log.append(self.observation)
+
+                next_state = discretize_observation(self.observation, self.bins)
                 self.previous_state = next_state
 
                 # decide whether to reduce temperature or not;
@@ -222,24 +246,74 @@ class RealTimeEnv:
                 )
 
                 # log current status and start a new epoch;
-                self.log_realtime(
-                    action,
-                    reward,
-                    hrf_duration
-                )
+                if not (self.logger and self.logger.is_alive()):
+                    self.logger = threading.Thread(
+                        target=self.log_realtime, args=(
+                            last_observation,
+                            self.observation,
+                            self.motion
+                        )
+                    )
+                    self.logger.start()
+
+                # reset important variable and start new epoch;
                 self.reset_realtime()
 
-    def log_realtime(self, action, reward, hrf_duration):
-        serializable_data = json.dumps(self.real_time_data[-hrf_duration:].tolist())
+    def log_realtime(self, last_action, next_action, motion):
+        # standardize fMRI data for visualization;
+        hrf_duration = config.rest_size + config.block_size
+
+        if len(self.real_time_data) > 0:
+            current_data = standardize_signal(self.real_time_data[-hrf_duration:]).tolist()
+        else:
+            current_data = self.real_time_data
+
+        # serialize and log them in the json file;
+        serializable_reward = json.dumps(self.reward)
+        serializable_data = json.dumps(current_data)
+        serializable_table = json.dumps(self.agent.q_table.tolist())
+        serializable_convergence = json.dumps(self.convergence)
+        serializable_motion_threshold = json.dumps(self.motion_threshold)
+
+        # motion parameters;
+        if self.current_epoch == 1:
+            rot_x, rot_y, rot_z = [0, 0, 0]
+            trs_x, trs_y, trs_z = [0, 0, 0]
+        else:
+            rot_x = json.dumps(motion[:, 0].tolist())
+            rot_y = json.dumps(motion[:, 1].tolist())
+            rot_z = json.dumps(motion[:, 2].tolist())
+            trs_x = json.dumps(motion[:, 3].tolist())
+            trs_y = json.dumps(motion[:, 4].tolist())
+            trs_z = json.dumps(motion[:, 5].tolist())
+
+        # agents actions;
+        contrast, frequency = last_action
+        last_action = json.dumps(tuple(last_action))
+
+        if next_action is not None:
+            next_action = json.dumps(tuple(next_action))
 
         log = {
-            "contrast": action[0],
-            "frequency": action[1],
-            "reward": reward,
+            "contrast": contrast,
+            "frequency": frequency,
+            "reward": serializable_reward,
             "resting_state": self.resting_state,
             "epoch": self.current_epoch,
             "hrf": self.serializable_hrf,
-            "fmri_data": serializable_data
+            "fmri_data": serializable_data,
+            "convergence": serializable_convergence,
+            "q_table": serializable_table,
+            "rotation x": rot_x,
+            "rotation y": rot_y,
+            "rotation z": rot_z,
+            "translation x": trs_x,
+            "translation y": trs_y,
+            "translation z": trs_z,
+            "last action": last_action,
+            "current action": next_action,
+            "current_motion": serializable_motion_threshold,
+            "motion_max_ratio": config.motion_max_ratio
         }
 
         try:
@@ -256,11 +330,15 @@ class RealTimeEnv:
             json.dump(json_data, json_file, indent=4)
 
     def reset_realtime(self):
+        self.temporary_data = []
+        self.motion = np.array([0, 0, 0, 0, 0, 0])
         self.resting_state = True
+        self.collected_volumes = 0
         self.volume_counter = 0
         self.current_epoch += 1
 
     def stop_realtime(self):
         # save acquired data and close environment;
         np.save(join(self.output_dir, "data.npy"), self.real_time_data)
-        self.environment.close()
+        self.state_manager.close()
+        clean_temporary_data()
