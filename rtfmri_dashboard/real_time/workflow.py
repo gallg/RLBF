@@ -4,6 +4,7 @@ from rtfmri_dashboard.agents.soft_q_learner import SoftQAgent, create_bins
 from rtfmri_dashboard.envs.checkerboard import CheckerBoardEnv
 from rtfmri_dashboard.agents.utils import convergence
 from rtfmri_dashboard.real_time.preprocessing import *
+from shutil import copyfile
 from posixpath import join
 
 import rtfmri_dashboard.config as config
@@ -340,5 +341,6 @@ class RealTimeEnv:
     def stop_realtime(self):
         # save acquired data and close environment;
         np.save(join(self.output_dir, "data.npy"), self.real_time_data)
+        copyfile("./settings.conf", self.output_dir + "/settings.conf")
         self.state_manager.close()
         clean_temporary_data()
