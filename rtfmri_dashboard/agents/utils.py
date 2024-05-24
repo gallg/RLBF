@@ -36,9 +36,9 @@ def discretize_observation(observations, bins):
 
 
 def euclidean_2d(x, v):
-    x = np.array(x).reshape(-1, 1)
-    v = np.array(v).reshape(-1, 1)
-    distance = np.linalg.norm(x - v, axis=1)
+    x = np.array(x)
+    v = np.array(v)
+    distance = np.sqrt((x[:, 0] - v[:, 0])**2 + (x[:, 1] - v[:, 1])**2)
     return np.mean(distance)
 
 

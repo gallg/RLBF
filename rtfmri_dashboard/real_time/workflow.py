@@ -41,7 +41,7 @@ class RealTimeEnv:
         self.convergence = []
         self.action_log = []
         self.observation = None
-        self.current_epoch = 1
+        self.current_epoch = 0
         self.previous_state = None
         self.state_manager = None
         self.agent = None
@@ -182,7 +182,7 @@ class RealTimeEnv:
                 self.plot_volume.start()
 
             # acquire data, skip collecting the first resting block;
-            if self.current_epoch > 1 or self.volume_counter > config.rest_size:
+            if self.current_epoch > 0 or self.volume_counter > config.rest_size:
                 self.collected_volumes += 1
                 data = get_mask_data(volume, mask)
 
@@ -194,7 +194,7 @@ class RealTimeEnv:
                 last_observation = self.observation
 
                 # Calculate convergence;
-                if self.current_epoch > self.convergence_window_size:
+                if self.current_epoch + 1 > self.convergence_window_size:
                     self.convergence.append(
                         convergence(
                             self.action_log,
@@ -220,7 +220,7 @@ class RealTimeEnv:
                     self.reward.append(reward)
                     self.agent.q_table = self.agent.update_q_table(reward, self.previous_state, old_q_value)
                 else:
-                    reward = self.reward[-1] if self.current_epoch > 1 else 0
+                    reward = self.reward[-1] if self.current_epoch > 0 else 0
                     self.reward.append(reward)
 
                 if not config.render_only:
@@ -245,6 +245,9 @@ class RealTimeEnv:
                     self.current_epoch,
                     reduce=config.reduce_temperature
                 )
+
+                # update epoch;
+                self.current_epoch += 1
 
                 # log current status and start a new epoch;
                 if not (self.logger and self.logger.is_alive()):
@@ -277,7 +280,7 @@ class RealTimeEnv:
         serializable_motion_threshold = json.dumps(self.motion_threshold)
 
         # motion parameters;
-        if self.current_epoch == 1:
+        if self.current_epoch == 0:
             rot_x, rot_y, rot_z = [0, 0, 0]
             trs_x, trs_y, trs_z = [0, 0, 0]
         else:
@@ -336,7 +339,6 @@ class RealTimeEnv:
         self.resting_state = True
         self.collected_volumes = 0
         self.volume_counter = 0
-        self.current_epoch += 1
 
     def stop_realtime(self):
         # save acquired data and close environment;

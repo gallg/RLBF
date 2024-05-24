@@ -79,7 +79,7 @@ class CheckerBoardEnv:
 
                 # check whether the state file has been updated,
                 # then update rendering;
-                if current_epoch > self.last_epoch:
+                if current_epoch > self.last_epoch or current_epoch == 0:
                     self.resting_state = False
                     self.contrast = self.log_scale[
                         int(round(state[0], 1) * config.num_bins_per_observation)
