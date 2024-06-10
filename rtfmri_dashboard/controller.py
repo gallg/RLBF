@@ -118,6 +118,9 @@ def run_acquisition(
 
 # ToDo: fix visualization of motion rotation/translation, not appearing on dashboard in the first epoch;
 # ToDo: handle case in which motion threshold skips the data for the first volume;
+# ToDo: handle the case in which more references have been acquired and are in the scandir (volume count);
+# ToDo: make sure that convergence calculation has no overlap problems (see simulation implementation);
+# ToDo: make sure that we never index with a value of 10 on the log scale (checkerboard);
 # ToDo: adjust Hypothesis function to rendering delay;
 
 if __name__ == "__main__":
