@@ -1,6 +1,80 @@
-# Dashboard for Reinforcement Learning in Real-Time fMRI 
+Towards generative AI-based fMRI paradigms: reinforcement learning via real-time brain feedback
+========
+Giuseppe Gallitto1,2, Robert Englert2,3, Balint Kincses1,2, Raviteja Kotikalapudi1,2, Jialin Li1,2,4, Kevin Hoffshlag1,2, Ulrike Bingel1,2, Tamas Spisak2,3<br>
 
----
+1 Department of Neurology, University Medicine Essen, Germany<br>
+2 Center for Translational Neuro- and Behavioral Sciences (C-TNBS), University Medicine Essen, Germany<br>
+3 Department of Diagnostic and Interventional Radiology and Neuroradiology, University Medicine Essen, Germany<br>
+4 Max Planck School of Cognition, Leipzig, Germany<br>
+
+#### Introduction
+In traditional human neuroimaging experiments, researchers construct experimental paradigms with
+a certain psychological/behavioral construct validity to infer the corresponding neural correlates.
+Here we introduce a novel approach called Reinforcement Learning via Brain Feedback (RLBF),
+that inverts the direction of inference; it searches for the optimal stimulation or paradigm to
+maximize (or minimize) response in predefined brain regions or networks (fig.1). The stimulation/
+paradigm is optimized by reinforcement learning algorithm (Kaelbling et al., 1996) which is
+rewarded based on real-time fMRI (Sulzer et al., 2013) data. Specifically, during ongoing real-time
+fMRI acquisition, the reinforcement learning agent manipulates the paradigm space (e.g. by means
+of a generative AI model) to drive the participant’s neural activity in a specific direction. Then the
+agent is rewarded based on the measured brain responses and gradually learns to adjust its choices
+to converge towards an optimal solution. Here, we present the results of a proof of concept study
+that aimed to confirm the viability of the proposed approach with simulated and empirical real time
+fMRI data.
+
+#### Methods
+In our proof of concept study, we aimed to construct a streamlined setup. To implement the
+reinforcement learner (fig 1. “Reinforcement Learning”), we used a simple and widely used
+algorithm, a soft Q-learner (Haarnoja et al., 2017) with a smooth reward function. For the paradigm
+space (fig 1. “Paradigm Generator”), we employed simple, algorithmically constructed visual
+stimulations. Specifically, we presented various versions of a flickering checkerboard to the
+participants, with contrast and frequency considered as free parameters of the paradigm space. A
+contrast value of zero resulted in no difference to the resting block. The reward signal for the
+reinforcement learner was calculated from brain responses in the primary visual cortex, as measured
+by a linear model fitted on a single block of data measured in block-design fashion, with 5 seconds
+of visual stimulus followed by 11 seconds of rest. The hypothesis function was convolved with a
+conventional double-gamma HRF.
+In this setting, the task for the agent was to figure out the optimal contrast-frequency configuration
+that maximizes a participant’s brain activity in the primary visual cortex. First we tested the
+feasibility of our approach by running simulations with realistic effect sizes estimates. Specifically,
+we defined the optimal ground truth as a linear function of contrast and flickering frequency, with
+maximum activation with maximal contrast and a frequency of 7Hz. In one simulation run, the
+reinforcement learner had 100 trials. In each trial the agent picked a contrast and frequency value
+and updated its Q-table based on the reward that was calculated by our ground truth equation, with
+added Gaussian noise. We fine-tuned the hyperparameters for the models using realistic initial
+conditions (signal-to-noise: 0.5 - 5; q-table smoothness: 0.5 - 4.0; soft-Q temperature: 0.2; learning
+rate: 0.05 - 0.9).
+With parameters chosen based on our simulation results, we measured data in n=10 participants, to
+establish the proof of concept. In the empirical measurements, we presented the checkerboard in 35-45
+blocks/trials with a TR of 1 second (1 block: 5 sec stimulation, 11 seconds of rest, total scanning
+time 10 minutes) and allowed the reinforcement learner to optimize the visual stimulation based on
+brain feedback.
+
+#### Results
+Simulation results show that the proposed implementation provides robust solution in a relatively
+wide range of initial conditions, within a small amount of trials. High smoothing power appears to
+function well with higher SNRs, whereas lower SNRs seem to require lower learning rates for
+optimal training (fig.2a). The model displayed a remarkably stability with a wide range of learning
+rate values. Results from the empirical measurements (fig.2b) are in line with knowledge about the
+contrast and frequency dependence of the checkerboard-response (Victor et al., 1997) and provide
+initial confirmation for the feasibility of the proposed approach.
+
+#### Conclusion
+Here we presented a proof of concept for Reinforcement Learning with Brain Feedback (RLBF), a
+novel experimental approach, which aims to find the optimal stimulation paradigm to activate,
+deactivate or modulate individual brain activity in pre-defined regions/networks. While this proof of
+concept study employed a simplified setup, future work aims to extend the approach with paradigm
+spaces constructed by generative AI solutions (e.g. large language models, image, video or music
+generation). The promises of the approach are twofold. First by inverting the direction of inference
+(“brain -> behavior”; instead of “behavior -> brain”) the proposed approach may emerge as a novel
+tool for basic and translational research. Second, when paired with generative AI, the RLBF
+approach has the potential to provide novel individualized treatment approaches, e.g. in from of AI-
+generated text, video or music that is optimized e.g. for improving states of pain or anxiety.
+
+## Software
+**N.B.** Our real-time fMRI software is still in an early stage of development, and it is not suitable for general use.
+The current version has been tested on one single scanner **and works only** with a very specific setup.
+
 <b> ** Tested with Siemens Magnetom Vida 3T **</b>
 
 ### Features
@@ -25,6 +99,13 @@ except for motion correction that is done using [FSL mcflirt](https://fsl.fmrib.
 of Raylib.
 - The Dashboard runs on Streamlit 1.30.0.
 
+
+### Requirements
+1. To avoid slowdowns that hinder the correct rendering of visual stimuli presented to participants a
+dedicated graphic card is required to run the Raylib environment.
+
+2. Also you should set up a "/mnt/fmritemp" folder to store temporary data. Ideally the folder
+should be a ram disk of at least 1GB size.
 
 ### Run the program
 
