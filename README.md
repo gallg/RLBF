@@ -62,7 +62,7 @@ rate values. Results from the empirical measurements (fig.2b) are in line with k
 contrast and frequency dependence of the checkerboard-response (Victor et al., 1997) and provide
 initial confirmation for the feasibility of the proposed approach.
 
-<img align="left" width="82%" src="./docs/img/img_2.png">
+<img align="left" width="100%" src="./docs/img/img_2.png">
 Fig.2: Results of our proof of concept study for the simulation and the empirical real-time fMRI acquisitions. The simulation shows the Q value for the optimal condition (contrast: 1.0, frequency: 0.7) and the best learning rate across 100 trials (a). The real-time acquisition of a single session (b) shows that the agent is able to converge to a robust solution across 45 trials/fMRI blocks.
 
 #### Conclusion
