@@ -115,6 +115,8 @@ should be a ram disk of at least 1GB size.
 
 ### Run the program
 
+Remember to **change the paths** on the "rtfmri_dashboard/controller.py" and "rtfmri_dashboard/envs/render.py" scripts before running.
+
 Run the controller script to start the main program. The environment will spawn by itself
 after the reference volume has been preprocessed.
 ```
