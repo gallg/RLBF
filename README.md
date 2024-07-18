@@ -22,7 +22,8 @@ to converge towards an optimal solution. Here, we present the results of a proof
 that aimed to confirm the viability of the proposed approach with simulated and empirical real time
 fMRI data.
 
-<a href="./docs/img/img_1.png">Fig.1: RLBF concept illustration. Brain activity is fed to a reinforcement learning algorithm that find the right paradigm to drive neural activity in the right direction (up- or down-regulation). The loop continues until the agent converges to an optimal solution.</a>
+<img align="left" width="50%" src="./docs/img/img_1.png">
+Fig.1: RLBF concept illustration. Brain activity is fed to a reinforcement learning algorithm that find the right paradigm to drive neural activity in the right direction (up- or down-regulation). The loop continues until the agent converges to an optimal solution.
 
 #### Methods
 In our proof of concept study, we aimed to construct a streamlined setup. To implement the
@@ -61,7 +62,8 @@ rate values. Results from the empirical measurements (fig.2b) are in line with k
 contrast and frequency dependence of the checkerboard-response (Victor et al., 1997) and provide
 initial confirmation for the feasibility of the proposed approach.
 
-<a href="./docs/img/img_2.png">Fig.2: Results of our proof of concept study for the simulation and the empirical real-time fMRI acquisitions. The simulation shows the Q value for the optimal condition (contrast: 1.0, frequency: 0.7) and the best learning rate across 100 trials (a). The real-time acquisition of a single session (b) shows that the agent is able to converge to a robust solution across 45 trials/fMRI blocks.</a>
+<img align="left" width="82%" src="./docs/img/img_2.png">
+Fig.2: Results of our proof of concept study for the simulation and the empirical real-time fMRI acquisitions. The simulation shows the Q value for the optimal condition (contrast: 1.0, frequency: 0.7) and the best learning rate across 100 trials (a). The real-time acquisition of a single session (b) shows that the agent is able to converge to a robust solution across 45 trials/fMRI blocks.
 
 #### Conclusion
 Here we presented a proof of concept for Reinforcement Learning with Brain Feedback (RLBF), a
