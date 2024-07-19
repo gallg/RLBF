@@ -54,19 +54,19 @@ time 10 minutes) and allowed the reinforcement learner to optimize the visual st
 brain feedback.
 
 <img align="left" width="100%" src="./docs/img/img_2.png">
-Fig.2: Results of the hyperparameter tuning for the simulation. The plots shows the Q value for the optimal condition (contrast: 1.0, frequency: 0.7) and the best learning rate across 100 trials.
+Fig.2: Outcomes of the simulation across 100 trials. Plots of the Q value under the ideal conditions (frequency: 0.7, contrast: 1.0) and with ideal hyperparameters (in bold, on the right)  are displayed. An SNR higher than two indicates greater model performance.
 
 #### Results
-Simulation results show that the proposed implementation provides robust solution in a relatively
+Simulation results (fig.3a) show that the proposed implementation provides a robust solution in a relatively
 wide range of initial conditions, within a small amount of trials. High smoothing power appears to
 function well with higher SNRs, whereas lower SNRs seem to require lower learning rates for
-optimal training (fig.2). The model displayed a remarkably stability with a wide range of learning
+optimal training. Nevertheless, the model displayed a remarkable stability with a wide range of learning
 rate values. Results from the empirical measurements (fig.3b) are in line with knowledge about the
 contrast and frequency dependence of the checkerboard-response (Victor et al., 1997) and provide
 initial confirmation for the feasibility of the proposed approach.
 
-<img align="left" width="100%" src="./docs/img/img_3png">
-Fig.3: Results of the simulation (a) and the mean result for all scanned participants (b). Both the simulation and the real-time sessions have been run with the optimal parameters (learning rate: 0.02, Temperature: 0.08, Kernel sigma: 4.0 ). For the simulation we selected an SNR of 3.3.
+<img align="left" width="100%" src="./docs/img/img_3.png">
+Fig.3: Results of the simulation (a) and the mean result for all scanned participants (b). Both the simulation and the real-time sessions have been run with the optimal hyperparameters. For the simulation we selected an SNR of 3.3.
 
 #### Conclusion
 Here we presented a proof of concept for Reinforcement Learning with Brain Feedback (RLBF), a
