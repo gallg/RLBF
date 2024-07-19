@@ -1,11 +1,11 @@
 Towards generative AI-based fMRI paradigms: reinforcement learning via real-time brain feedback
 ========
-Giuseppe Gallitto1,2, Robert Englert2,3, Balint Kincses1,2, Raviteja Kotikalapudi1,2, Jialin Li1,2,4, Kevin Hoffshlag1,2, Ulrike Bingel1,2, Tamas Spisak2,3<br>
+Giuseppe Gallitto<sup>1,2</sup>, Robert Englert<sup>2,3</sup>, Balint Kincses<sup>1,2</sup>, Raviteja Kotikalapudi<sup>1,2</sup>, Jialin Li<sup>1,2,4</sup>, Kevin Hoffshlag<sup>1,2</sup>, Sulin Ali<sup>1,2</sup>, Ulrike Bingel<sup>1,2</sup>, Tamas Spisak<sup>2,3</sup><br>
 
-1 Department of Neurology, University Medicine Essen, Germany<br>
-2 Center for Translational Neuro- and Behavioral Sciences (C-TNBS), University Medicine Essen, Germany<br>
-3 Department of Diagnostic and Interventional Radiology and Neuroradiology, University Medicine Essen, Germany<br>
-4 Max Planck School of Cognition, Leipzig, Germany<br>
+<sup>1</sup> Department of Neurology, University Medicine Essen, Germany<br>
+<sup>2</sup> Center for Translational Neuro- and Behavioral Sciences (C-TNBS), University Medicine Essen, Germany<br>
+<sup>3</sup> Department of Diagnostic and Interventional Radiology and Neuroradiology, University Medicine Essen, Germany<br>
+<sup>4</sup> Max Planck School of Cognition, Leipzig, Germany<br>
 
 #### Introduction
 In traditional human neuroimaging experiments, researchers construct experimental paradigms with
