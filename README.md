@@ -8,9 +8,9 @@ Giuseppe Gallitto<sup>1,2</sup>, Robert Englert<sup>2,3</sup>, Balint Kincses<su
 <sup>4</sup> Max Planck School of Cognition, Leipzig, Germany<br>
 
 #### Introduction
-In traditional human neuroimaging experiments, researchers construct experimental paradigms with
-a certain psychological/behavioral construct validity to infer the corresponding neural correlates.
-Here we introduce a novel approach called Reinforcement Learning via Brain Feedback (RLBF),
+In traditional human neuroimaging experiments, researchers build experimental paradigms with
+a certain psychological/behavioral validity to infer the corresponding neural correlates.
+Here we introduce a novel approach called *Reinforcement Learning via Brain Feedback* (RLBF),
 that inverts the direction of inference; it searches for the optimal stimulation or paradigm to
 maximize (or minimize) response in predefined brain regions or networks (fig.1). The stimulation/
 paradigm is optimized by reinforcement learning algorithm (Kaelbling et al., 1996) which is
@@ -32,11 +32,11 @@ algorithm, a soft Q-learner (Haarnoja et al., 2017) with a smooth reward functio
 space (fig 1. “Paradigm Generator”), we employed simple, algorithmically constructed visual
 stimulations. Specifically, we presented various versions of a flickering checkerboard to the
 participants, with contrast and frequency considered as free parameters of the paradigm space. A
-contrast value of zero resulted in no difference to the resting block. The reward signal for the
+contrast value of zero resulted in no visual stimulation. The reward signal for the
 reinforcement learner was calculated from brain responses in the primary visual cortex, as measured
 by a linear model fitted on a single block of data measured in block-design fashion, with 5 seconds
-of visual stimulus followed by 11 seconds of rest. The hypothesis function was convolved with a
-conventional double-gamma HRF.
+of visual stimulus followed by 11 seconds of resting state. The hypothesis function was convolved with a
+conventional double-gamma HRF.<br>
 In this setting, the task for the agent was to figure out the optimal contrast-frequency configuration
 that maximizes a participant’s brain activity in the primary visual cortex. First we tested the
 feasibility of our approach by running simulations with realistic effect sizes estimates. Specifically,
@@ -46,7 +46,7 @@ reinforcement learner had 100 trials. In each trial the agent picked a contrast 
 and updated its Q-table based on the reward that was calculated by our ground truth equation, with
 added Gaussian noise. We fine-tuned the hyperparameters for the models using realistic initial
 conditions (signal-to-noise: 0.5 - 5; q-table smoothness: 0.5 - 4.0; soft-Q temperature: 0.2; learning
-rate: 0.05 - 0.9).
+rate: 0.05 - 0.9).<br>
 With parameters chosen based on our simulation results, we measured data in n=10 participants, to
 establish the proof of concept. In the empirical measurements, we presented the checkerboard in 35-45
 blocks/trials with a TR of 1 second (1 block: 5 sec stimulation, 11 seconds of rest, total scanning
@@ -79,6 +79,16 @@ generation). The promises of the approach are twofold. First by inverting the di
 tool for basic and translational research. Second, when paired with generative AI, the RLBF
 approach has the potential to provide novel individualized treatment approaches, e.g. in from of AI-
 generated text, video or music that is optimized e.g. for improving states of pain or anxiety.
+
+#### References
+<sup>1</sup>
+Kaelbling, L. P., Littman, M. L., & Moore, A. W. (1996). Reinforcement learning: A survey. Journal of artificial intelligence research, 4, 237-285.<br>
+<sup>2</sup>
+Sulzer, J., Haller, S., Scharnowski, F., Weiskopf, N., Birbaumer, N., Blefari, M. L., ... & Sitaram, R. (2013). Real-time fMRI neurofeedback: progress and challenges. Neuroimage, 76, 386-399.<br>
+<sup>3</sup>
+Haarnoja, T., Tang, H., Abbeel, P., & Levine, S. (2017, July). Reinforcement learning with deep energy-based policies. In International conference on machine learning (pp. 1352-1361) PMLR.<br>
+<sup>4</sup>
+Victor JD, Conte MM, Purpura KP. Dynamic shifts of the contrast-response function. Visual neuroscience. 1997 May;14(3):577-87.<br>
 
 ## Software
 **N.B.** Our real-time fMRI software is still in an early stage of development, and it is not suitable for general use.
