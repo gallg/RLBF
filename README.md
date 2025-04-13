@@ -1,6 +1,3 @@
-Towards generative AI-based fMRI paradigms: reinforcement learning via real-time brain feedback
-========
-
 ## Software
 **N.B.** Our real-time fMRI software is still in an early stage of development, and it is not suitable for general use.
 The current version has been tested on one single scanner **and works only** with a very specific setup.
