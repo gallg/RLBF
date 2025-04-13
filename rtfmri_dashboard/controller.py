@@ -116,22 +116,15 @@ def run_acquisition(
         current_volume = None
 
 
-# ToDo: fix visualization of motion rotation/translation, not appearing on dashboard in the first epoch;
-# ToDo: handle case in which motion threshold skips the data for the first volume;
-# ToDo: handle the case in which more references have been acquired and are in the scandir (volume count);
-# ToDo: make sure that convergence calculation has no overlap problems (see simulation implementation);
-# ToDo: make sure that we never index with a value of 10 on the log scale (checkerboard);
-# ToDo: adjust Hypothesis function to rendering delay;
-
 if __name__ == "__main__":
-    output_dir = "/home/giuseppe/rtfmri/rtfmri_dashboard/log"
-    scanner_dir = "/home/giuseppe/rtfmri/rtfmri_dashboard/data_in/scandir"
+    output_dir = "../rtfmri_dashboard/log"
+    scanner_dir = "../rtfmri_dashboard/data_in/scandir"
     reset_log(join(output_dir, "log.json"))
 
     env, path_to_first_vol, template, mask, affine, transformation = initialize_realtime(
         RealTimeEnv,
-        "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/MNI152_T1_2mm_brain.nii.gz",
-        "/home/giuseppe/PNI/Bkup/Projects/rtfMRI-controller/data_in/standard/BA17_mask_fix.nii.gz",
+        "../rtfMRI-controller/data_in/standard/MNI152_T1_2mm_brain.nii.gz",
+        "../rtfMRI-controller/data_in/standard/BA17_mask_fix.nii.gz",
         scanner_dir,
         output_dir
     )

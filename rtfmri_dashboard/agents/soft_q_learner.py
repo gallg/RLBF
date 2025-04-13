@@ -7,7 +7,7 @@ import numpy as np
 class SoftQAgent:
 
     def __init__(self,
-                 env,                       # gymnasium Environment;
+                 env,                       # Environment;
                  q_table,                   # initialized Q-table;
                  kernel,                    # used to smooth the Q-table;
                  render_mode=None,

@@ -4,7 +4,7 @@ import pyray as rl
 
 def render_env():
     env = CheckerBoardEnv(
-        "/home/giuseppe/rtfmri/rtfmri_dashboard/data_in/scandir",
+        "../rtfmri_dashboard/data_in/scandir",
         board="../rtfmri_dashboard/envs/assets/checkerboard.png",
         cross="../rtfmri_dashboard/envs/assets/cross.png",
         render_mode="human"
